@@ -94,7 +94,7 @@ Disagreement cap: if |model − style| > 0.4, the combined score is capped at ju
 
 **A case where my two signals split, and what my rule does with it:**
 
-[Fill in from your Milestone 4 calibration runs, for example: "My plainly written human paragraph scored model 0.__ and style 0.__. The weighted average was 0.__, and because the two differ by 0.__, the cap kept it out of the AI label, so it was labelled 'unsure' instead of AI."]
+My closest split was my plain human paragraph: signal one scored it 0.758 (AI-like) but the style signal only 0.593. The two differ by 0.165, under my 0.4 disagreement limit, so the cap didn't apply. The weighted average was 0.684, below my 0.72 AI threshold, so it was labelled "unsure" rather than AI. None of my calibration texts split by more than 0.4, so the disagreement cap hasn't been triggered yet; it's a safeguard for stronger disagreements than I've tested.
 
 ---
 
@@ -153,53 +153,13 @@ $ curl -X POST http://127.0.0.1:5000/appeal \
 **What the log shows afterwards**
 
 ```bash
-$ curl "http://127.0.0.1:5000/log?limit=10"
+$ curl "http://127.0.0.1:5000/log?limit=5"
 ```
 
 ```json
 {
-  "count": 8,
+  "count": 4,
   "entries": [
-    {
-      "combined_score": null,
-      "content_id": "fd8a7106-2d4b-41cc-8884-46d3308937bc",
-      "creator_id": "sample1",
-      "guess": "unsure",
-      "label": "PLACEHOLDER \u2014 label comes in Milestone 5.",
-      "model_score": 0.7407,
-      "status": "decided",
-      "style_score": null,
-      "timestamp": "2026-11-02T03:09:48+00:00"
-    },
-    {
-      "combined_score": null,
-      "content_id": "f54a43f0-eaff-4e82-a985-aad3b9199ae9",
-      "creator_id": "sample2",
-      "guess": "unsure",
-      "label": "PLACEHOLDER \u2014 label comes in Milestone 5.",
-      "model_score": 0.4566,
-      "status": "decided",
-      "style_score": null,
-      "timestamp": "2026-11-02T03:12:36+00:00"
-    },
-    {
-      "combined_score": null,
-      "content_id": "20b85fe7-afb6-419f-87f3-ff6d5f6a2d87",
-      "creator_id": "sample3",
-      "guess": "unsure",
-      "label": "PLACEHOLDER \u2014 label comes in Milestone 5.",
-      "model_score": 0.7576,
-      "status": "decided",
-      "style_score": null,
-      "timestamp": "2026-11-02T03:13:18+00:00"
-    },
-    {
-      "creator_id": "sample1",
-      "event": "rejected",
-      "reason": "empty_text",
-      "status": "rejected",
-      "timestamp": "2026-11-02T03:18:02+00:00"
-    },
     {
       "combined_score": 0.4201,
       "content_id": "c9a3140b-b24b-48dd-8267-4467c2da2d42",

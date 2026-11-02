@@ -44,61 +44,51 @@ Two things worth knowing before you pick numbers:
 ---
 ## 1.
 
-<!-- Your criterion. It must name a number. -->
-
-
+Of 12 human-written pieces in my frozen test set (6 I wrote myself, 6 written in plain, simple English by other people), **0** of the 6 plain pieces and at most **1** of all 12 are labelled high-confidence AI, in every one of the three trials.
 
 **Why this target:**
 
-
+My false-positive trace showed plain writing like Minh's can score around 0.7 on signal one, and plain writers are the people least able to argue back. So I hold plain writing to zero false accusations, not "few." The test set is frozen before I set any thresholds, so I can't pass by tuning to it.
 
 ---
 
 ## 2.
 
-<!-- Your criterion. -->
-
-
+Of the same 12 human pieces, at least **7** are labelled high-confidence human (not "unsure"), in every trial.
 
 **Why this target:**
 
-
+Criterion 1 could be met by a system that calls everything "unsure." That isn't safe; it just shifts the harm, because every real writer would see a label doubting them. Seven of twelve forces the human label to actually work for clear human writing, which pulls against criterion 1: I can't avoid false accusations just by widening the unsure band.
 
 ---
 
 ## 3.
 
-<!-- Your criterion. -->
-
-
+Of 10 AI-generated pieces in the frozen test set, produced by at least 2 different AI tools with different prompts and not edited, at least **6** are labelled high-confidence AI, and **none** is labelled high-confidence human, in every trial.
 
 **Why this target:**
 
-
+A detector that never detects isn't working. I accept that my high AI threshold lets borderline AI text through as "unsure," but six of ten clear, unedited cases should still be caught. Calling unedited AI text "probably written by a person" is a worse failure than "unsure," so that gets a hard zero. Two different tools stops me testing against one model's habits.
 
 ---
 
 ## 4.
 
-<!-- Your criterion. -->
-
-
+Across all 120 pairs of (AI piece, human piece) from the test set, the AI piece has the higher combined score in at least **85%** of pairs, in every trial.
 
 **Why this target:**
 
-
+This measures whether the score itself separates AI from human text, regardless of where I put the thresholds. It counts overlap directly, so one extreme score can't hide it the way an average can. 85% is a level where the score is genuinely useful but still realistic for a small local model and simple style measures. If the score fails this, no threshold choice can save the labels.
 
 ---
 
 ## 5.
 
-<!-- Your criterion. -->
-
-
+All **12** contract checks pass with **0** server errors (500) and `/ping` still answering afterwards. The checks are 7 bad inputs to `/submit` (missing `text`, empty, whitespace only, two words, 50,000 characters, `text` not a string, body not JSON), each returning a 4xx JSON error within 5 seconds, and 5 appeal cases: a valid appeal returns 200, sets the status to `under_review`, and leaves the original decision unchanged in the log; an unknown `content_id` returns 404; missing `reasoning` and empty `reasoning` each return 400; and a second appeal on the same item returns 200 with status still `under_review` and adds no duplicate appeal entry to the log.
 
 **Why this target:**
 
-
+The detector errors on text under 3 tokens and only reads about 400, so short and huge inputs are known failure points, and next unit's attack set will send them on purpose. A 50,000-character input that hangs for a minute is effectively a crash, hence the 5-second limit. The appeal checks matter because an appeal that.
 
 ---
 

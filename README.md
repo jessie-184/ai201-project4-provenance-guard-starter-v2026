@@ -51,6 +51,8 @@ Provenance Guard is a small backend a writing site could plug into. A writer sub
 
 ## Signals and Scoring
 
+**Stretch:** a third signal, writer history, with the weighting of all three explained under The combining rule.
+
 ### Signal one — the model signal
 
 **What it measures:** How predictable the text is to a language model. `detector.model_signal` runs GPT-2 locally, computes the text's perplexity (how surprised the model is by each next word), and maps it onto a 0–1 score where low perplexity (very predictable) scores close to 1, meaning more likely AI.

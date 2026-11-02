@@ -111,7 +111,7 @@ All **12** contract checks pass with **0** server errors (500) and `/ping` still
 
 **Why this target:**
 
-The detector errors on text under 3 tokens and only reads about 400, so short and huge inputs are known failure points, and next unit's attack set will send them on purpose. A 50,000-character input that hangs for a minute is effectively a crash, hence the 5-second limit. The appeal checks matter because an appeal that.
+The detector errors on text under 3 tokens and only reads about 400, so short and huge inputs are known failure points, and next unit's attack set will send them on purpose. A 50,000-character input that hangs for a minute is effectively a crash, hence the 5-second limit. The appeal checks matter because an appeal that silently fails, or rewrites the original decision, breaks the one safeguard a wrongly accused writer has.
 
 ---
 

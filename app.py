@@ -218,7 +218,6 @@ def submit():
         "label": label,
         "model_score": model_score,
         "style_score": None,
-        "history_score": None,
         "status": "decided",
     })
 

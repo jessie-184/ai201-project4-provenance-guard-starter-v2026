@@ -41,17 +41,14 @@ Provenance Guard is a small backend a writing site could plug into. A writer sub
 1. **The text arrives.** A writing site sends `POST /submit` with JSON containing `text` and `creator_id`. If `text` is missing, empty, or too short to score, the service answers with an error instead of guessing.
 2. **Signal one reads it for meaning.** `detector.model_signal` runs GPT-2 locally and measures how predictable the text is (perplexity). Predictable text scores closer to 1 (AI-like), surprising text closer to 0 (human-like).
 3. **Signal two measures its shape.** `stylometry.style_signal` measures the text without reading it: how much sentence length varies, how varied the vocabulary is, and how punctuation is used. It also returns a 0–1 score where higher means more AI-like.
-4. **Signal three compares it with the writer's past work.** `history.history_signal` looks up the same `creator_id`'s earlier submissions in the audit log and measures how far this piece's style is from their usual style. A piece that matches their past writing scores low; one that's very different scores higher. It's capped at 0.3–0.7 so it can never flag anyone on its own, and it's left out for writers with fewer than 3 past submissions.
-5. **The scores become one confidence score and a label.** `scoring.combine_signals` merges the signals into a single score from 0 (confidently human) to 1 (confidently AI), with writer history weighted lowest. `scoring.score_to_label` then checks that score against two thresholds in `config.py`: below the human threshold it's "probably written by a person," above the AI threshold it's "probably AI-generated," and anything in between is "unsure." Calling a real writer's work AI needs much stronger evidence than calling it human, because a wrong accusation is the expensive mistake.
-6. **The decision is logged and returned.** `audit.log_decision` records the submission under a new `content_id` with every signal score, the combined score, the label, and the three style measures (so future submissions from this writer have a history to compare against). The writer gets back JSON with the `content_id`, guess, confidence, label text, and each signal score.
-7. **The writer can push back.** If the writer thinks the label is wrong, they send `POST /appeal` with the `content_id` and their reasoning. The service checks the item exists, records the appeal, moves the item to `under_review`, and confirms. Nothing is re-scored automatically; a person reviews it.
+4. **The scores become one confidence score and a label.** `scoring.combine_signals` merges the two signals into a single score from 0 (confidently human) to 1 (confidently AI). `scoring.score_to_label` then checks that score against two thresholds in `config.py`: below the human threshold it's "probably written by a person," above the AI threshold it's "probably AI-generated," and anything in between is "unsure." Calling a real writer's work AI needs much stronger evidence than calling it human, because a wrong accusation is the expensive mistake.
+5. **The decision is logged and returned.** `audit.log_decision` records the submission under a new `content_id` with both signal scores, the combined score, and the label. The writer gets back JSON with the `content_id`, guess, confidence, label text, and both signal scores.
+6. **The writer can push back.** If the writer thinks the label is wrong, they send `POST /appeal` with the `content_id` and their reasoning. The service checks the item exists, records the appeal, moves the item to `under_review`, and confirms. Nothing is re-scored automatically; a person reviews it.
 
 
 ---
 
 ## Signals and Scoring
-
-**Stretch:** a third signal, writer history, with the weighting of all three explained under The combining rule.
 
 ### Signal one — the model signal
 
@@ -79,25 +76,17 @@ The plain human paragraph scored almost exactly the same as the AI one, so on si
 
 **What it can't see:** It has no idea what the text says. Anything that changes the shape without changing the substance moves it: adding typos, splitting long sentences into short ones, pasting in a quotation, or sprinkling in dashes. That is cheap to do on purpose. It also depends on length: vocabulary variety falls as text gets longer, and a one- or two-sentence submission has almost no sentence-length spread to measure, so short texts get a weak reading.
 
-### Signal three — writer history (stretch)
-
-**What it measures:** How far this submission's style is from the same writer's past submissions. `history.history_signal` looks up earlier entries for the `creator_id` in the audit log, compares this piece's three style measures with that writer's usual values, and maps the distance onto a 0–1 score. It's capped at 0.3–0.7 and left out entirely for writers with fewer than 3 past submissions.
-
-**Why that might differ between human and AI writing:** A real writer's habits (how long their sentences run, how varied their vocabulary is) stay fairly stable from piece to piece. A sudden jump away from their usual style is one sign the piece came from somewhere else. It also protects plain writers: someone who has always written simply stays consistent with their own history, which works against signal one's false positive.
-
-**What it can't see:** Anything before a writer's third submission, so new writers get no benefit from it. A writer who used AI from their very first submission looks perfectly consistent. A real writer trying something new, such as moving from poems to essays, looks inconsistent, which is why the signal is capped and weighted lowest. And `creator_id` is whatever the caller sends, so someone can build up a "consistent" history with AI text before submitting the piece that matters.
 
 ### The combining rule
 
-**The rule:** A weighted average of the signals, with signal one (the model) weighted highest, signal two (style) next, and writer history lowest. Writer history is left out for writers with fewer than 3 past submissions, and its weight is then shared between the other two, so new writers aren't pulled toward "unsure" by a signal with nothing to say. One extra rule protects against wrong accusations: if the model and style signals disagree by more than 0.4, the combined score is capped just below the AI threshold. When two different methods disagree that strongly, the system can call the text "unsure" but never "AI."
+**The rule:** A weighted average of the two signals, with signal one (the model) weighted a little higher than signal two (style). One extra rule protects against wrong accusations: if the two signals disagree by more than 0.4, the combined score is capped just below the AI threshold. When two different methods disagree that strongly, the system can call the text "unsure" but never "AI."
 
 **The numbers:**
 
-| Signal | Weight (with history) | Weight (no history) |
-|---|---|---|
-| Model signal | 0.45 | 0.55 |
-| Style signal | 0.35 | 0.45 |
-| Writer history | 0.20 | — |
+| Signal | Weight |
+|---|---|
+| Model signal | 0.55 |
+| Style signal | 0.45 |
 
 Disagreement cap: if |model − style| > 0.4, the combined score is capped at just below `AI_THRESHOLD`.
 
@@ -111,37 +100,21 @@ Disagreement cap: if |model − style| > 0.4, the combined score is capped at ju
 
 ## Label Variants
 
-<!-- The exact text of all three labels, as a reader would see them, and the
-     score range each covers.
-
-     Write them for someone who has never heard the word "threshold". -->
-
 | Label | Score range | The exact text a reader sees |
 |---|---|---|
-| high-confidence human |  |  |
-| unsure |  |  |
-| high-confidence AI |  |  |
+| high-confidence human | 0.00 – 0.45 | "This looks like it was written by a person. Our check found the patterns we usually see in human writing." |
+| unsure | 0.45 – 0.72 | "We can't tell whether this was written by a person or with help from AI. A lot of genuine writing looks like this, so this isn't a sign that anything is wrong. If you wrote this and want a person to take a look, you can ask for a review." |
+| high-confidence AI | 0.72 – 1.00 | "This was probably written with help from AI. Our check found strong signs of machine-generated writing. Automated checks can be wrong, so the writer can ask for a person to review this." |
 
 **Why I worded the "unsure" one this way:**
-<!-- It's the hardest of the three. It has to admit uncertainty without
-     sounding like an accusation, because the person reading it may well have
-     written every word themselves. -->
 
-
+The person reading "unsure" may well have written every word themselves. My own calibration showed a plain human paragraph scoring almost the same as AI text, and "unsure" is exactly where writers like that will land. So the label says plainly that the system couldn't tell, and doesn't hint at suspicion. "A lot of genuine writing looks like this" tells both the writer and anyone else reading it that this label is common and not an accusation. It names the review option as something the writer can choose, not something they have to do to clear their name. I avoided words like "flagged," "suspicious," "detected," and any numbers or confidence scores, because a reader who has never heard the word "threshold" would read a number like 0.68 as "68% likely to be AI," which isn't what it means.
 
 ---
 
 ## Sample Run
 
-<!-- One submission and one appeal, pasted as text: the request, the response,
-     and the log entries. -->
-
 **A submission**
-
-<!-- The response needs content_id, guess, confidence, label, AND both
-     signal scores - model_score and style_score. Unit 8's tools read those
-     two off the response, so leaving them out costs you next unit's
-     diagnostics. -->
 
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \

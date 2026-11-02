@@ -146,7 +146,7 @@ Disagreement cap: if |model − style| > 0.4, the combined score is capped at ju
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
-  -d '{I feel like human is trying to make their lives so complicated. Before we only need to find food and a shelter that is enough for having a happy life. However, nowadays, we have so many things that we have to worried about. For example, we need to make enough money, we need to maintain our social relationship, we need to make sure everything goes smoothly, etc. I don't know if we're going in the right direction as so many of us feel lost sometimes. We're too worried about running toward the standard of the society. I hope we can get out of our own trap one day.", "creator_id": "sample3"}'
+  -d '{"text": I feel like human is trying to make their lives so complicated. Before we only need to find food and a shelter that is enough for having a happy life. However, nowadays, we have so many things that we have to worried about. For example, we need to make enough money, we need to maintain our social relationship, we need to make sure everything goes smoothly, etc. I don't know if we're going in the right direction as so many of us feel lost sometimes. We're too worried about running toward the standard of the society. I hope we can get out of our own trap one day.", "creator_id": "sample3"}'
 ```
 
 ```json
@@ -177,11 +177,55 @@ $ curl -X POST http://127.0.0.1:5000/appeal \
 **What the log shows afterwards**
 
 ```bash
-$ curl "http://127.0.0.1:5000/log?limit=3"
+$ curl "http://127.0.0.1:5000/log?limit=10"
 ```
 
 ```json
-
+{
+  "count": 4,
+  "entries": [
+    {
+      "combined_score": null,
+      "content_id": "fd8a7106-2d4b-41cc-8884-46d3308937bc",
+      "creator_id": "sample1",
+      "guess": "unsure",
+      "label": "PLACEHOLDER \u2014 label comes in Milestone 5.",
+      "model_score": 0.7407,
+      "status": "decided",
+      "style_score": null,
+      "timestamp": "2026-11-02T03:09:48+00:00"
+    },
+    {
+      "combined_score": null,
+      "content_id": "f54a43f0-eaff-4e82-a985-aad3b9199ae9",
+      "creator_id": "sample2",
+      "guess": "unsure",
+      "label": "PLACEHOLDER \u2014 label comes in Milestone 5.",
+      "model_score": 0.4566,
+      "status": "decided",
+      "style_score": null,
+      "timestamp": "2026-11-02T03:12:36+00:00"
+    },
+    {
+      "combined_score": null,
+      "content_id": "20b85fe7-afb6-419f-87f3-ff6d5f6a2d87",
+      "creator_id": "sample3",
+      "guess": "unsure",
+      "label": "PLACEHOLDER \u2014 label comes in Milestone 5.",
+      "model_score": 0.7576,
+      "status": "decided",
+      "style_score": null,
+      "timestamp": "2026-11-02T03:13:18+00:00"
+    },
+    {
+      "creator_id": "sample1",
+      "event": "rejected",
+      "reason": "empty_text",
+      "status": "rejected",
+      "timestamp": "2026-11-02T03:18:02+00:00"
+    }
+  ]
+}
 ```
 
 ---

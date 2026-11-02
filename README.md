@@ -119,19 +119,18 @@ The person reading "unsure" may well have written every word themselves. My own 
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
-  -d '{"text": "I feel like human is trying to make their lives so complicated. Before we only need to find food and a shelter that is enough for having a happy life. However, nowadays, we have so many things that we have to worried about. For example, we need to make enough money, we need to maintain our social relationship, we need to make sure everything goes smoothly, etc. I don't know if we're going in the right direction as so many of us feel lost sometimes. We're too worried about running toward the standard of the society. I hope we can get out of our own trap one day.", "creator_id": "sample3"}'
+  -d '{"text": "I feel like human is trying to make their lives so complicated. Before we only need to find food and a shelter that is enough for having a happy life. However, nowadays, we have so many things that we have to worried about. For example, we need to make enough money, we need to maintain our social relationship, we need to make sure everything goes smoothly, etc. I don't know if we're going in the right direction as so many of us feel lost sometimes. We're too worried about running toward the standard of the society. I hope we can get out of our own trap one day.", "creator_id": "Bob"}'
 ```
 
 ```json
 {
-  "confidence": 0.7576,
-  "content_id": "20b85fe7-afb6-419f-87f3-ff6d5f6a2d87",
+  "confidence": 0.6836,
+  "content_id": "095941bd-5373-429b-90d5-9d55903f3b9d",
   "guess": "unsure",
-  "history_score": null,
-  "label": "PLACEHOLDER \u2014 label comes in Milestone 5.",
+  "label": "We can't tell whether this was written by a person or with help from AI. A lot of genuine writing looks like this, so this isn't a sign that anything is wrong. If you wrote this and want a person to take a look, you can ask for a review.",
   "model_score": 0.7576,
   "status": "decided",
-  "style_score": null
+  "style_score": 0.5931
 }
 ```
 
@@ -140,11 +139,15 @@ $ curl -X POST http://127.0.0.1:5000/submit \
 ```bash
 $ curl -X POST http://127.0.0.1:5000/appeal \
   -H "Content-Type: application/json" \
-  -d '{"content_id": "...", "reasoning": "..."}'
+  -d '{"content_id": "095941bd-5373-429b-90d5-9d55903f3b9d", "reasoning": "I wrote this myself. English is my second language, so I use simple words and short sentences."}'
 ```
 
 ```json
-
+{
+  "content_id": "095941bd-5373-429b-90d5-9d55903f3b9d",
+  "message": "Thanks. Your appeal has been recorded and a person will review this decision.",
+  "status": "under_review"
+}
 ```
 
 **What the log shows afterwards**
@@ -155,7 +158,7 @@ $ curl "http://127.0.0.1:5000/log?limit=10"
 
 ```json
 {
-  "count": 4,
+  "count": 8,
   "entries": [
     {
       "combined_score": null,
@@ -196,6 +199,47 @@ $ curl "http://127.0.0.1:5000/log?limit=10"
       "reason": "empty_text",
       "status": "rejected",
       "timestamp": "2026-11-02T03:18:02+00:00"
+    },
+    {
+      "combined_score": 0.4201,
+      "content_id": "c9a3140b-b24b-48dd-8267-4467c2da2d42",
+      "creator_id": "Alex",
+      "guess": "human",
+      "label": "This looks like it was written by a person. Our check found the patterns we usually see in human writing.",
+      "model_score": 0.4566,
+      "status": "decided",
+      "style_score": 0.3755,
+      "timestamp": "2026-11-02T05:22:43+00:00"
+    },
+    {
+      "combined_score": 0.6836,
+      "content_id": "095941bd-5373-429b-90d5-9d55903f3b9d",
+      "creator_id": "Bob",
+      "guess": "unsure",
+      "label": "We can't tell whether this was written by a person or with help from AI. A lot of genuine writing looks like this, so this isn't a sign that anything is wrong. If you wrote this and want a person to take a look, you can ask for a review.",
+      "model_score": 0.7576,
+      "status": "decided",
+      "style_score": 0.5931,
+      "timestamp": "2026-11-02T05:22:58+00:00"
+    },
+    {
+      "combined_score": 0.7536,
+      "content_id": "f4cb6e23-8186-4986-b49d-515078fcd548",
+      "creator_id": "Carol",
+      "guess": "ai",
+      "label": "This was probably written with help from AI. Our check found strong signs of machine-generated writing. Automated checks can be wrong, so the writer can ask for a person to review this.",
+      "model_score": 0.7628,
+      "status": "decided",
+      "style_score": 0.7423,
+      "timestamp": "2026-11-02T05:23:45+00:00"
+    },
+    {
+      "content_id": "095941bd-5373-429b-90d5-9d55903f3b9d",
+      "creator_id": "Bob",
+      "event": "appeal",
+      "reasoning": "I wrote this myself. English is my second language, so I use simple words and short sentences.",
+      "status": "under_review",
+      "timestamp": "2026-11-02T05:26:08+00:00"
     }
   ]
 }
@@ -207,15 +251,15 @@ $ curl "http://127.0.0.1:5000/log?limit=10"
 
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I wrote a plain paragraph myself (sample 3: short sentences, everyday words, the way a second-language writer might write) and asked Claude to help me check whether signal one would call it AI. That's the false-positive case I describe under signal one's blind spot.
+- *What came back:* My own paragraph scored 0.758 on signal one, almost identical to a clearly AI-written paragraph (0.763), while a more personal, specific paragraph I wrote scored 0.457. Claude pointed out that on signal one alone no threshold could separate my plain writing from the AI text, and that the style signal and combining rule would have to protect writers like this.
+- *What I changed:* I added the three scores to my README as evidence for signal one's blind spot. When I set my thresholds, I put the AI threshold at 0.72, above the 0.68 combined score my plain paragraph got, so writing like it lands in "unsure" instead of being called AI. I also wrote the "unsure" label to say clearly that it isn't an accusation and that the writer can ask for a review.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I was deciding how to weight the model signal against the style signal. I leaned toward giving style more weight, because AI writing often sounds formal and polished, but I also knew the model signal mattered, so I asked Claude to help me reason it through.
+- *What came back:* Claude suggested weighting the model signal slightly higher (0.55 model, 0.45 style) instead of leaning toward style. Its reasoning: the style signal can't read, so cheap changes like typos or split sentences move it, and in my calibration one of its three measures (vocabulary variety) pointed the wrong way, giving my plain human paragraph a more AI-like score than the actual AI text. It also suggested a disagreement rule: if the two signals differ by more than 0.4, the combined score is capped below the AI threshold, so two methods disagreeing can produce "unsure" but never an accusation.
+- *What I changed:* I tested my assumption that formal means AI with a formal paragraph I wrote myself. Its style score was 0.456, slightly on the human side, so formal style alone doesn't mark text as AI, and I dropped the idea of weighting style higher. I kept 0.55 / 0.45 with the disagreement cap, and inside the style signal I gave vocabulary variety the lowest weight (0.15), since it was the measure that worked against plain writers.
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 

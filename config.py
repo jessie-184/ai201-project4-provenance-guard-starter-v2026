@@ -54,8 +54,12 @@ DETECTOR_MAX_TOKENS = 400
 # down BEFORE you code it, and to put the numbers in your README. Whatever you
 # decide, it goes here.
 
-WEIGHT_MODEL_SIGNAL = 0.5
-WEIGHT_STYLE_SIGNAL = 0.5
+WEIGHT_MODEL_SIGNAL = 0.55
+WEIGHT_STYLE_SIGNAL = 0.45
+
+# If the two signals differ by more than this, the combined score is capped
+# just below AI_THRESHOLD: strong disagreement can mean "unsure", never "AI".
+DISAGREEMENT_LIMIT = 0.4
 
 
 # ─── Thresholds (Milestone 5) ────────────────────────────────────────────────

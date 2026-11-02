@@ -31,6 +31,8 @@ from flask import Flask, jsonify, request
 import audit
 import config
 import detector
+import scoring
+import stylometry
 
 app = Flask(__name__)
 
@@ -194,19 +196,19 @@ def submit():
         return _reject(creator_id, "detector_unavailable",
                        "The detector model isn't loaded. Run `python detector.py` once.", 503)
 
-    # ── Placeholders until Milestones 4 and 5 ───────────────────────────────
+    # ── Signal two, then combine and label ──────────────────────────────────
+    style_score = stylometry.style_signal(text)
+    combined = scoring.combine_signals(model_score, style_score)
+    guess, label = scoring.score_to_label(combined)
     content_id = str(uuid.uuid4())
-    guess = "unsure"                       # Milestone 5 replaces this
-    confidence = model_score               # Milestone 4 replaces this with the combined score
-    label = "PLACEHOLDER — label comes in Milestone 5."
 
     audit.log_decision(
         content_id=content_id,
         creator_id=creator_id,
         guess=guess,
         model_score=model_score,
-        style_score=None,
-        combined_score=None,
+        style_score=style_score,
+        combined_score=combined,
         label=label,
         status="decided",
     )
@@ -214,11 +216,50 @@ def submit():
     return jsonify({
         "content_id": content_id,
         "guess": guess,
-        "confidence": confidence,
+        "confidence": combined,
         "label": label,
         "model_score": model_score,
-        "style_score": None,
+        "style_score": style_score,
         "status": "decided",
+    })
+
+@app.post("/appeal")
+def appeal():
+    """A writer says we got it wrong. Record it, move the item to under_review, confirm."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "invalid_json",
+                        "message": "Send a JSON object with 'content_id' and 'reasoning'."}), 400
+
+    content_id = payload.get("content_id")
+    reasoning = payload.get("reasoning")
+
+    if not isinstance(content_id, str) or not content_id.strip():
+        return jsonify({"error": "missing_content_id",
+                        "message": "'content_id' is required."}), 400
+    if not isinstance(reasoning, str) or not reasoning.strip():
+        return jsonify({"error": "missing_reasoning",
+                        "message": "Please explain why you think the label is wrong."}), 400
+
+    entries = audit.entries_for(content_id)
+    decision = next((e for e in entries if e.get("status") == "decided"), None)
+    if decision is None:
+        return jsonify({"error": "not_found",
+                        "message": f"No submission found with content_id '{content_id}'."}), 404
+
+    # A second appeal on the same item: keep the status, don't log a duplicate.
+    already_appealed = any(e.get("event") == "appeal" for e in entries)
+    if not already_appealed:
+        audit.log_appeal(content_id=content_id,
+                         creator_id=decision["creator_id"],
+                         reasoning=reasoning)
+
+    return jsonify({
+        "content_id": content_id,
+        "status": "under_review",
+        "message": ("Thanks. Your appeal has been recorded and a person will review this decision."
+                    if not already_appealed else
+                    "This submission is already under review. Your earlier appeal is on record."),
     })
 
 # ── Already works ─────────────────────────────────────────────────────────────

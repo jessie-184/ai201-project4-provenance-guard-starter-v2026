@@ -61,6 +61,16 @@ Provenance Guard is a small backend a writing site could plug into. A writer sub
 
 **What it can't see:** Predictability is not authorship. Plain writing, with common words in short, ordinary sentences, is predictable no matter who wrote it. A second-language writer sticking to vocabulary they're sure of, a younger writer, or anyone writing plainly on purpose can score as machine-like as actual AI text. That is the false positive this whole project is about, and it lands on the writers least able to argue back. It also fails the other way: dense, ornate prose full of rare words can score as human even if a model wrote it, and AI text with a few unusual words swapped in becomes less predictable without becoming more human.
 
+I confirmed this in calibration, running `detector.py` on three paragraphs:
+
+| Text | Who wrote it | Perplexity | `model_signal` |
+|---|---|---|---|
+| Clear AI paragraph about AI | AI | 21.7 | 0.763 |
+| Plain, simple paragraph about modern life | Human | 22.1 | 0.758 |
+| Personal, specific paragraph about AI's impact | Human | 50.2 | 0.457 |
+
+The plain human paragraph scored almost exactly the same as the AI one, so on signal one alone no threshold can separate them. Any setting that labels the AI paragraph "AI" would also accuse that writer.
+
 ### Signal two — the style signal
 
 **What it measures:** The shape of the text, without reading it. `stylometry.style_signal` combines three measures: how much sentence length varies (standard deviation over mean), how varied the vocabulary is (unique words over total words), and how much and what kind of punctuation is used. Each is put on a 0–1 scale and pointed the same way, so higher means more AI-like.
@@ -140,7 +150,16 @@ $ curl -X POST http://127.0.0.1:5000/submit \
 ```
 
 ```json
-
+{
+  "confidence": 0.7576,
+  "content_id": "20b85fe7-afb6-419f-87f3-ff6d5f6a2d87",
+  "guess": "unsure",
+  "history_score": null,
+  "label": "PLACEHOLDER \u2014 label comes in Milestone 5.",
+  "model_score": 0.7576,
+  "status": "decided",
+  "style_score": null
+}
 ```
 
 **An appeal**

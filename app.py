@@ -30,6 +30,7 @@ from flask import Flask, jsonify, request
 
 import audit
 import config
+import detector
 
 app = Flask(__name__)
 
@@ -148,99 +149,78 @@ def health():
     })
 
 
-# ── YOU BUILD THIS ────────────────────────────────────────────────────────────
+MAX_TEXT_CHARS = 10_000   # longer input is rejected before it reaches the model
+
+
+def _reject(creator_id, reason, message, status=400):
+    """Refuse a request, leave a trace in the audit log, and tell the caller why."""
+    audit.log_rejection(creator_id=creator_id or "unknown", reason=reason)
+    return jsonify({"error": reason, "message": message}), status
+
 
 @app.post("/submit")
 # @limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
 def submit():
-    """
-    Take a piece of text, decide about it, log the decision, answer.
-    ← TODO — Milestones 3, 4 and 5
+    """Take a piece of text, score it, log the decision, answer. (Milestone 3: one signal.)"""
+    payload = request.get_json(silent=True)
 
-    Expects JSON:
-        {"text": "...", "creator_id": "..."}
+    # ── Check the input before anything touches the model ──────────────────
+    if not isinstance(payload, dict):
+        return _reject(None, "invalid_json",
+                       "Send a JSON object with 'text' and 'creator_id'.")
 
-    Should return JSON with, at minimum:
-        {"content_id": "...", "guess": "...", "confidence": 0.0, "label": "...",
-         "model_score": 0.0, "style_score": 0.0}
+    creator_id = payload.get("creator_id")
+    text = payload.get("text")
 
-    ⚠️ **Both signal scores go in the response, not just the log.** Unit 8's
-    `run_attacks.py` and `run_eval.py` read `model_score` and `style_score`
-    straight off this response and put them in your reports. Leave them out and
-    every row of next unit's evidence says `null` — which is exactly the
-    diagnostic you need to name a stage and a mechanism. You do not want to
-    find that out after running the attack set.
+    if not isinstance(creator_id, str) or not creator_id.strip():
+        return _reject(None, "missing_creator_id",
+                       "'creator_id' is required and must be a non-empty string.")
+    if not isinstance(text, str):
+        return _reject(creator_id, "missing_text",
+                       "'text' is required and must be a string.")
+    if not text.strip():
+        return _reject(creator_id, "empty_text", "'text' is empty.")
+    if len(text) > MAX_TEXT_CHARS:
+        return _reject(creator_id, "text_too_long",
+                       f"'text' is over {MAX_TEXT_CHARS} characters.")
 
-    ─────────────────────────────────────────────────────────────────────────
-    Build it in three passes. Do not skip ahead — the ordering is how you tell
-    a broken route from a broken signal.
+    # ── Signal one ──────────────────────────────────────────────────────────
+    try:
+        model_score = detector.model_signal(text)
+    except ValueError:
+        return _reject(creator_id, "text_too_short",
+                       "'text' is too short to score. Send a few sentences at least.")
+    except detector.DetectorUnavailable:
+        return _reject(creator_id, "detector_unavailable",
+                       "The detector model isn't loaded. Run `python detector.py` once.", 503)
 
-    **Milestone 3 — the route answers.**
-      1. Return a hardcoded response. Confirm `curl` gets it back before you
-         add any logic at all.
-      2. Then pull `text` and `creator_id` out of the payload.
-      3. Then call ONE signal — `detector.model_signal(text)` — and put the
-         real number in. Leave confidence and label as placeholders.
-      4. Log every submission with `audit.log_decision(...)`. The content_id
-         matters: `/appeal` needs it, and a student who skips it rebuilds this
-         whole flow later.
+    # ── Placeholders until Milestones 4 and 5 ───────────────────────────────
+    content_id = str(uuid.uuid4())
+    guess = "unsure"                       # Milestone 5 replaces this
+    confidence = model_score               # Milestone 4 replaces this with the combined score
+    label = "PLACEHOLDER — label comes in Milestone 5."
 
-    **Milestone 4 — the second signal and the score.**
-      5. Add `stylometry.style_signal(text)`.
-      6. Combine them with `scoring.combine_signals(...)`.
-      7. Log BOTH signal scores alongside the combined one, and put them in the
-         response too. Next unit you can't diagnose anything without them.
+    audit.log_decision(
+        content_id=content_id,
+        creator_id=creator_id,
+        guess=guess,
+        model_score=model_score,
+        style_score=None,
+        combined_score=None,
+        label=label,
+        status="decided",
+    )
 
-    **Milestone 5 — the label.**
-      8. `scoring.score_to_label(...)` and put the real label in the response.
-
-    ─────────────────────────────────────────────────────────────────────────
-    Worth deciding early, because unit 8's attack set will decide it for you:
-    what should this do when `text` is missing, empty, or enormous? A crash on
-    a malformed input is one of the most common real failures there is.
-    """
-    payload = request.get_json(silent=True) or {}
-
-    # TODO: delete this and build the route.
     return jsonify({
-        "error": "not_implemented",
-        "message": "POST /submit isn't built yet — see the TODO in app.py.",
-        "you_sent": {
-            "text_length": len(payload.get("text", "")),
-            "creator_id": payload.get("creator_id"),
-        },
-    }), 501
-
-
-@app.post("/appeal")
-def appeal():
-    """
-    A writer says you got it wrong. ← TODO — Milestone 5
-
-    Expects JSON:
-        {"content_id": "...", "reasoning": "..."}
-
-    Should:
-      1. Check the content_id actually exists — `audit.entries_for(id)` tells
-         you. A typo here fails silently and looks like a broken endpoint,
-         which is the single most common way this milestone eats an hour.
-      2. Record the appeal with `audit.log_appeal(...)`, which moves the item
-         to `under_review`.
-      3. Confirm to the writer. No automatic re-checking needed.
-
-    This is the smallest endpoint in the project and the one that matters most
-    to the person on the other end. It's the only thing standing between a
-    wrong accusation and nothing at all.
-    """
-    payload = request.get_json(silent=True) or {}
-
-    # TODO: delete this and build the route.
-    return jsonify({
-        "error": "not_implemented",
-        "message": "POST /appeal isn't built yet — see the TODO in app.py.",
-        "you_sent": payload,
-    }), 501
-
+        "content_id": content_id,
+        "guess": guess,
+        "confidence": confidence,
+        "label": label,
+        "model_score": model_score,
+        "style_score": None,
+        "history_score": None,
+        "status": "decided",
+    })
 
 # ── Already works ─────────────────────────────────────────────────────────────
 

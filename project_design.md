@@ -1,14 +1,13 @@
 ## Tracing the false positive
 
-**The writer:** Minh, a second-language English speaker, submits a short personal essay he wrote himself. He sticks to words he's sure of, in short, clear sentences. It's his first submission, so he has no history.
+**The writer:** Minh, a second-language English speaker, submits a short personal essay he wrote himself. He sticks to words he's sure of, in short, clear sentences.
 
 1. **Arrives:** `/submit` receives his text and `creator_id`. It's long enough to score.
 2. **Signal one:** his common words and plain sentences are very predictable to GPT-2, so the model signal scores high, around 0.80. This is the blind spot doing exactly what it's known to do.
 3. **Signal two:** his sentences are similar in length and his vocabulary repeats, so the style signal also leans AI-like, around 0.60.
-4. **Signal three:** no history yet, so it's left out.
-5. **Score and label:** with the no-history weights (0.55 / 0.45) the combined score is about 0.71. The two signals differ by only 0.20, so the disagreement cap doesn't apply. If my AI threshold were the starter's 0.65, Minh would be told his work is AI-generated.
-6. **What he sees:** a label saying his own essay was probably written by AI, which is a wrong accusation.
-7. **What he can do:** appeal with `/appeal`. His item moves to `under_review`, and a person looks at it. That's his only recourse.
+4. **Score and label:** with weights of (0.55 / 0.45) the combined score is about 0.71. The two signals differ by only 0.20, so the disagreement cap doesn't apply. If my AI threshold were the starter's 0.65, Minh would be told his work is AI-generated.
+5. **What he sees:** a label saying his own essay was probably written by AI, which is a wrong accusation.
+6. **What he can do:** appeal with `/appeal`. His item moves to `under_review`, and a person looks at it. That's his only recourse.
 
 **What this decides:** the AI threshold has to sit above the scores plain human writing can reach. If plain writing can score around 0.7, the AI label should need something like 0.80 or more, so Minh lands in "unsure" instead. That costs us some AI text slipping through as "unsure," which is the trade we choose. The unsure label must also not read as an accusation, and it should tell him he can appeal.
 
@@ -31,7 +30,6 @@
 | `label` | string | The full sentence the reader sees |
 | `model_score` | float 0–1 | Signal one |
 | `style_score` | float 0–1 | Signal two |
-| `history_score` | float 0–1 or null | Signal three; null when the writer has fewer than 3 past submissions |
 | `status` | string | `"decided"` |
 
 **Errors (400, JSON `{"error": ..., "message": ...}`):** the request body is not valid JSON; `text` missing or not a string; `text` empty or too short to score; `text` over the length limit; `creator_id` missing or empty. Nothing is scored, and the rejection is logged.

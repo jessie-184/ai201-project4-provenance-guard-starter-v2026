@@ -34,7 +34,7 @@
 | `history_score` | float 0–1 or null | Signal three; null when the writer has fewer than 3 past submissions |
 | `status` | string | `"decided"` |
 
-**Errors (400, JSON `{"error": ..., "message": ...}`):** `text` missing or not a string; `text` empty or too short to score; `text` over the length limit; `creator_id` missing or empty. Nothing is scored, and the rejection is logged.
+**Errors (400, JSON `{"error": ..., "message": ...}`):** the request body is not valid JSON; `text` missing or not a string; `text` empty or too short to score; `text` over the length limit; `creator_id` missing or empty. Nothing is scored, and the rejection is logged.
 
 ### POST /appeal
 
@@ -52,3 +52,5 @@
 | `message` | string | Plain-English confirmation for the writer |
 
 **Errors:** 400 if `content_id` or `reasoning` is missing or empty; 404 if `content_id` doesn't exist in the log.
+
+**Second appeal:** an appeal on an item already `under_review` returns 200, keeps the status `under_review`, and does not log a duplicate appeal.

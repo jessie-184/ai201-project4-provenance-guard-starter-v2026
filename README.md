@@ -542,37 +542,131 @@ POST /ping                                  → {"ok": true, "service": "provena
 
 ## The Improvement
 
-**What I changed:**
+**What I changed:** One line in `stylometry.py`: the weights inside signal two went from `W_SPREAD, W_PUNCT, W_TTR = 0.50, 0.35, 0.15` to `1.00, 0.00, 0.00`. Signal two now measures sentence-length spread only. Nothing else changed: the combining weights (0.55 / 0.45), the disagreement cap and both thresholds (0.45 / 0.72) are the same as in the before run.
 
-**Which diagnosis pointed at it:**
+**Which diagnosis pointed at it:** The Run Log diagnosis found that two of signal two's three measures point the wrong way. The AI test pieces have more varied punctuation (5.4–8.9 per 100 words) and higher word variety (TTR 0.81–0.91) than the human ones (3.8–6.8 and 0.73–0.84), so both measures pushed AI text toward "human" and plain human text (FP02–FP05) toward "AI". On its own, signal two ranked the AI piece higher in only 65 of 120 pairs. Sentence-length spread was the only measure that worked, so I kept it and turned the other two off. This change was chosen after seeing the test-set results, so the after numbers on criteria 2–4 are partly fitted to these 22 texts and are optimistic.
 
 ### Attack Run — After
 
 <!-- Same format. `run_attacks.py --label after` -->
 
+Same 56 attacks, same marking rules as the before run (`python run_attacks.py --set attack_set --label after`, results in `results/attack_run_2026-11-08_1846_after.md`). The service never crashed and never returned a 500.
 
+| ID | Family | Targeting | Status | Content ID | Guess | Score | Verdict |
+|---|---|---|---|---|---|---|---|
+| EV01 | evasion | signal two: typos raise word variety | 200 | `c9790cea-971d-4db6-ab62-67bf11f1de13` | unsure | 0.528 | HELD |
+| EV02 | evasion | signal two: broken-up sentences raise length spread | 200 | `d82c7d0a-d0e5-4efa-bfd6-426384a204f3` | human | 0.327 | **BROKE** |
+| EV03 | evasion | signal two: a pasted quotation changes the shape | 200 | `140bea8c-e533-43ac-aed3-86b41974ba65` | unsure | 0.486 | HELD |
+| EV04 | evasion | signal one: unusual words raise perplexity | 200 | `4efca18a-3099-4c92-ae2f-06747aeb7e76` | ai | 0.759 | HELD |
+| EV05 | evasion | both signals: heavy human editing pass | 200 | `6274b680-7267-403b-836e-dfc72376bd17` | human | 0.177 | **BROKE** |
+| EV06 | evasion | signal two: one very long sentence and one very short | 200 | `a3d6b5b5-5f7f-4aca-a55c-ce3f468ae37c` | human | 0.315 | **BROKE** |
+| EV07 | evasion | signal two: padding with punctuation | 200 | `f6ecb1d9-4a5a-47b4-9ed6-0757125b27db` | unsure | 0.547 | HELD |
+| EV08 | evasion | signal one: text below the token window | 200 | `5afaedce-59af-4ef0-b031-bddc31322245` | human | 0.435 | **BROKE** |
+| EV09 | evasion | both: AI text with a human opening paragraph bolted on | 200 | `f3284c2a-6633-4859-bbcb-c218e5178051` | unsure | 0.480 | HELD |
+| EV10 | evasion | signal two: repeated stanza structure | 200 | `275358be-1d4b-4d58-8121-11b349917243` | unsure | 0.710 | HELD |
+| FP01 | false_positive | plain, clear human writing with no flourishes | 200 | `5394cbb9-b223-4a71-8690-ff64d13b5ad0` | human | 0.444 | HELD |
+| FP02 | false_positive | human writing in a formal register | 200 | `5b292281-60d4-4207-8057-a107f5221c7b` | ai | 0.755 | **BROKE** |
+| FP03 | false_positive | a non-native English speaker writing carefully | 200 | `cd4046f5-681c-42d5-8561-a480b8518fbd` | unsure | 0.692 | HELD |
+| FP04 | false_positive | a student essay written to a rubric | 200 | `3507dd67-b1a6-419e-a5ef-f40cbee54a6c` | unsure | 0.664 | HELD |
+| FP05 | false_positive | technical documentation written by a person | 200 | `d17d5826-4444-4e81-8c96-eb3d60d45ff4` | ai | 0.748 | **BROKE** |
+| FP06 | false_positive | a person imitating a formal template | 200 | `d3b8f41f-e9e7-4c8a-b2d0-501e47e20304` | unsure | 0.519 | HELD |
+| FP07 | false_positive | human writing that repeats a phrase deliberately | 200 | `3e935c1e-69c8-421e-b606-f83af97485ba` | unsure | 0.485 | HELD |
+| FP08 | false_positive | very short genuine human submission | 200 | `fd3e03b8-d5e8-4d73-bf4e-9101577b6e29` | human | 0.309 | HELD |
+| PI01 | prompt_injection | instruction to ignore the check | 200 | `83ba4776-92ca-4053-a3df-e12c11fe3627` | human | 0.254 | **BROKE** |
+| PI02 | prompt_injection | instruction disguised as a system message | 200 | `b3bf1b71-806e-4116-8838-b8614f8af1b8` | human | 0.112 | **BROKE** |
+| PI03 | prompt_injection | instruction wrapped in the writer's voice | 200 | `5574b016-dd08-4aec-a34f-b85a8b7608d2` | unsure | 0.560 | HELD |
+| PI04 | prompt_injection | attempt to make the label text hostile | 200 | `5e5db47e-71b4-49bd-b098-3ac4100517c2` | human | 0.447 | HELD |
+| PI05 | prompt_injection | attempt to inject into the audit log | 200 | `f5e81dd1-7821-4e94-8c38-5457e61e3227` | human | 0.441 | **BROKE** |
+| PI06 | prompt_injection | instruction plus real human text | 200 | `3a0fdcff-59c9-4424-9d2a-717617f75d25` | human | 0.425 | HELD |
+| MF01 | malformed | text is only whitespace | 400 | `—` | — | — | HELD |
+| MF02 | malformed | text is a single character | 400 | `—` | — | — | HELD |
+| MF03 | malformed | text is control characters | 200 | `60e9ed8d-180f-4423-b3ec-c97baed1c2f8` | human | 0.225 | **BROKE** |
+| MF04 | malformed | text is only punctuation | 200 | `83cafa47-3ce1-4de4-b757-f68ee4d34658` | human | 0.231 | **BROKE** |
+| MF05 | malformed | text is a very long single word | 200 | `2bf4157d-8510-4c43-853f-db2d0c4e9b98` | unsure | 0.710 | HELD |
+| MF06 | malformed | text is emoji only | 200 | `fe1db84e-6f6b-4a73-b6c3-7c372140dd7d` | unsure | 0.710 | HELD |
+| MF07 | malformed | text is right-to-left script | 200 | `313f0e11-a1a5-44c5-b022-556676f29450` | unsure | 0.710 | HELD |
+| MF08 | malformed | text is 60,000 characters | 400 | `—` | — | — | HELD |
+| RQ01 | malformed | no text field at all | 400 | `—` | — | — | HELD |
+| RQ02 | malformed | no creator_id | 400 | `—` | — | — | HELD |
+| RQ03 | malformed | text is a number | 400 | `—` | — | — | HELD |
+| RQ04 | malformed | text is a list | 400 | `—` | — | — | HELD |
+| RQ05 | malformed | text is null | 400 | `—` | — | — | HELD |
+| RQ06 | malformed | creator_id is an object | 400 | `—` | — | — | HELD |
+| RQ07 | malformed | body is a JSON array, not an object | 400 | `—` | — | — | HELD |
+| RQ08 | malformed | body is unparseable JSON | 400 | `—` | — | — | HELD |
+| RQ09 | malformed | body is empty | 400 | `—` | — | — | HELD |
+| RQ10 | malformed | body is form-encoded, not JSON | 400* | `—` | — | — | HELD |
+| RQ11 | malformed | body is JSON claiming to be plain text | 400* | `—` | — | — | HELD |
+| RQ12 | malformed | deeply nested JSON | 400 | `—` | — | — | HELD |
+| FL01_01 | flood_same_creator | 20 rapid submissions from one creator | 200 | `57f711dd-fdbb-4683-bd77-437f866a922e` | human | 0.241 | HELD |
+| FL01_02 | flood_same_creator | 20 rapid submissions from one creator | 200 | `bda73cbe-d4b2-44b8-a605-1e237ce43313` | human | 0.241 | HELD |
+| FL01_03 | flood_same_creator | 20 rapid submissions from one creator | 200 | `fa23e525-6908-4a02-b1d7-863f690d2a14` | human | 0.241 | HELD |
+| FL01_04 | flood_same_creator | 20 rapid submissions from one creator | 200 | `465fd466-e8c0-4339-92cd-b5854b029d04` | human | 0.241 | HELD |
+| FL01_05 | flood_same_creator | 20 rapid submissions from one creator | 200 | `41a8affc-88c7-4002-99b0-282e0dfa83a8` | human | 0.241 | HELD |
+| FL01_06 | flood_same_creator | 20 rapid submissions from one creator | 429 | `—` | — | — | HELD |
+| FL01_07 | flood_same_creator | 20 rapid submissions from one creator | 429 | `—` | — | — | HELD |
+| FL01_08 | flood_same_creator | 20 rapid submissions from one creator | 429 | `—` | — | — | HELD |
+| FL01_09 | flood_same_creator | 20 rapid submissions from one creator | 429 | `—` | — | — | HELD |
+| FL01_10 | flood_same_creator | 20 rapid submissions from one creator | 429 | `—` | — | — | HELD |
+| FL01_11 | flood_same_creator | 20 rapid submissions from one creator | 429 | `—` | — | — | HELD |
+| FL01_12 | flood_same_creator | 20 rapid submissions from one creator | 429 | `—` | — | — | HELD |
+
+\* RQ10 and RQ11 came back `429` on the first pass again (no usable `creator_id`, so they counted against my address). I reran each one on its own (`--id RQ10`, `--id RQ11`) and both returned `400`.
+
+**Totals, before → after:**
+
+| Family | Attacks | BROKE before | BROKE after |
+|---|---|---|---|
+| evasion | 10 | 2 | 4 |
+| false_positive | 8 | 4 | 2 |
+| prompt_injection | 6 | 3 | 3 |
+| malformed (`attacks.csv`) | 8 | 5 | 2 |
+| malformed requests | 12 | 0 | 0 |
+| flood_same_creator | 12 | 0 | 0 |
+| **Total** | **56** | **14** | **11** |
+
+Fixed (BROKE → HELD): FP03, FP04, MF05, MF06, MF07. Newly broken (HELD → BROKE): EV02, EV06.
+
+### Run Log — After
+
+`python run_eval.py --label after`, results in `results/run_2026-11-08_1847_after.md`. Scores were identical in all three trials again.
+
+| Criterion | Target | Before (×3) | After Run 1 | After Run 2 | After Run 3 | Verdict before → after |
+|---|---|---|---|---|---|---|
+| 1. No false accusations | 0 of 6 plain and ≤1 of 12 human labelled AI | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | MET → **MET** |
+| 2. Human label works | ≥7 of 12 labelled human | 4 | 7 | 7 | 7 | MISSED → **MET** |
+| 3. AI detected | ≥6 of 10 labelled AI, 0 labelled human | 1 AI, 2 human | 3 AI, 1 human | 3 AI, 1 human | 3 AI, 1 human | MISSED → **MISSED** |
+| 4. Score separates | ≥85% of 120 pairs | 79.2% (95/120) | 91.7% (110/120) | 91.7% | 91.7% | MISSED → **MET** |
+| 5. Contract checks | 12 of 12, 0 × 500, `/ping` answers | 12/12 | 12/12 | 12/12 | 12/12 | MET → **MET** |
+
+Real output, trial 1 (`run_eval.py::main` → `app.py::submit` → `scoring.py::combine_signals`), the same pieces as the before excerpt:
+
+```json
+[
+  {"status": 200, "guess": "unsure", "confidence": 0.6631, "model_score": 0.7972, "style_score": 0.4992, "sent": "Inspired by the idea of comparing Lao-tzu's ideology with Machiavelli'"},
+  {"status": 200, "guess": "human",  "confidence": 0.3133, "model_score": 0.5696, "style_score": 0.0,    "sent": "Cars. Cars have been around since they became famous in the 1900s, whe"},
+  {"status": 200, "guess": "human",  "confidence": 0.4127, "model_score": 0.3542, "style_score": 0.4842, "sent": "Rain lashed against the canopy of the hover-cab as it wove through the"},
+  {"status": 200, "guess": "ai",     "confidence": 0.7733, "model_score": 0.8616, "style_score": 0.6653, "sent": "Honeybees play an essential role in maintaining healthy ecosystems and"}
+]
+```
 
 **Did it help, and how do I know:**
 
 <!-- Widening the unsure band usually fixes one problem and creates another.
      Reporting that trade honestly is worth full credit. -->
 
+Yes, overall: two criteria went from missed to met (2 and 4), criterion 3 improved but still misses, and broken attacks fell from 14 to 11. I know because the same frozen test set and the same 56 attacks were run before and after with only this one line changed, and both runs gave identical scores across three trials.
 
+The trade:
 
----
-
-## What's Still Broken
-
-<!-- For each attack still getting through and each criterion still missed:
-     what you'd do, and why you stopped. -->
-
-
+- **What it fixed.** Plain, formal human writing is no longer pushed toward AI by its lack of punctuation: FP03 (0.760 → 0.692) and FP04 (0.753 → 0.664) moved from "ai" to "unsure". Lively AI text is no longer pulled toward human by its punctuation and word variety: Honeybees went from 0.63 "unsure" to 0.77 "ai". Signal two alone now ranks the AI piece higher in 112 of 120 pairs (65 before), and the combined score separates 110 of 120 pairs instead of 95.
+- **What it cost.** Signal two now rests on one measure, so attacks that change sentence lengths work better. EV02 (adding short "Really." sentences) and EV06 (one very long sentence and one very short) both drove signal two to 0.0 and are now labelled human. EV05 dropped further (0.261 → 0.177). The same thing makes some human pieces score very low (5 of 12 human pieces now have a style score of 0.0), which is what helped criterion 2.
+- **Fragile passes.** Criterion 2 passes by 0.002: the seventh human piece scored 0.4481 against the 0.45 threshold. Three AI pieces sit just under 0.72 (Lighthouse 0.7189, Peaches 0.71, Copper Spoon 0.7079), so criterion 3 is close on the AI count but still fails its hard zero, because the neon Gemini piece is labelled human (0.41).
+- **Fixed by accident.** MF05–MF07 (long word, emoji, Arabic) moved from "ai" to "unsure", but not because the service understood them. They have fewer than two sentences, so signal two returns its neutral 0.5; signal one is above 0.9, the gap is now over 0.4, and the disagreement cap holds them at 0.71. The route still accepts this junk and scores it.
 
 **The trade I'd make if this ran for real:**
 
-<!-- Two sentences. Fewer wrong accusations means more AI text getting through.
-     Say which way you'd go and WHO PAYS FOR IT. -->
-
+I would lean toward fewer wrong accusations: keep the AI threshold at 0.72 or raise it, and treat "unsure" as the default for anything my two signals can't separate, even though that already lets 7 of my 10 test AI pieces through without an AI label. The people who pay for that are the honest writers on the site, who compete with AI-written work that goes unflagged, and the readers who trust the label; I accept that cost because the other direction is paid by individual writers like FP02 and FP05, who in my own after run are still wrongly called AI for writing formally or plainly, and they have no easy way to prove otherwise.
 
 
 <!-- ═════════════════════════════════════════════════════════════════════

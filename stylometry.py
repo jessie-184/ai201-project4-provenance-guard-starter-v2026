@@ -57,7 +57,7 @@ TTR_AI, TTR_HUMAN = 0.70, 0.95         # moving-average type-token ratio
 # How much each measure counts inside the style signal.
 # Type-token ratio gets the least: in calibration it pointed the WRONG way for
 # plain human writing (C3 0.75, lower than the clear AI paragraph's 0.89).
-W_SPREAD, W_PUNCT, W_TTR = 0.50, 0.35, 0.15
+W_SPREAD, W_PUNCT, W_TTR = 1.00, 0.00, 0.00
 
 TTR_WINDOW = 50   # words per window, so long and short texts are comparable
 

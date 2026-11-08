@@ -440,41 +440,100 @@ I ran all 56 attacks once, before changing anything (`python run_attacks.py --se
 ---
 
 ## Run Log and Verdicts
-
+ 
 <!-- Your five criteria across three trials. `run_eval.py --label before`. -->
-
+ 
+Test set: 22 texts frozen in `scenarios.py` after the thresholds were set on the calibration texts (C1–C4) and not changed after seeing these scores. 6 pieces I wrote myself; 6 student essays (class 0 = human) from a public essay dataset; 10 unedited AI pieces from three tools (3 Gemini, 3 ChatGPT, 4 Claude). The ChatGPT titles and category tags were removed; the body text is as generated. The human pieces are 245–744 words, the AI pieces 105–202 words. Full output: `results/run_2026-11-08_1726_before.md`. Criterion 5's last checks (body not JSON, 50,000-character timing, the five appeal cases, `/ping`) were run by hand with curl, three times.
+ 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |
-
-**Real output from one trial**, pasted as text, naming the file and function
-that produced it:
-
+| 1. No false accusations | 0 of 6 plain pieces and ≤1 of 12 human pieces labelled AI | 0 / 0 | 0 / 0 | 0 / 0 | **Met** |
+| 2. Human label works | ≥7 of 12 human pieces labelled human | 4 | 4 | 4 | **Missed** |
+| 3. AI detected | ≥6 of 10 AI pieces labelled AI, 0 labelled human | 1 AI, 2 human | 1 AI, 2 human | 1 AI, 2 human | **Missed** |
+| 4. Score separates | AI piece scores higher in ≥85% of 120 pairs | 79.2% (95/120) | 79.2% | 79.2% | **Missed** |
+| 5. Contract checks | 12 of 12 pass, 0 × 500, `/ping` answers | 12/12 | 12/12 | 12/12 | **Met** |
+ 
+Scores were identical in all three trials, so signal one is deterministic on my machine. Criterion 4 counts one exact tie (Honeybees 0.6334 vs. my Lao-tzu essay 0.6334) as not higher; counting it as higher gives 96/120 = 80%, still a miss.
+ 
+**Real output from one trial**, pasted as text, naming the file and function that produced it:
+ 
+Produced by `run_eval.py::main` → `app.py::submit` → `scoring.py::combine_signals` (`results/run_2026-11-08_1726_before.md`, trial 1). One piece per group:
+ 
 ```json
-
+[
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.6334,
+    "model_score": 0.7972,
+    "style_score": 0.4333,
+    "sent": "Inspired by the idea of comparing Lao-tzu's ideology with Machiavelli'"
+  },
+  {
+    "status": 200,
+    "guess": "human",
+    "confidence": 0.3849,
+    "model_score": 0.5696,
+    "style_score": 0.1591,
+    "sent": "Cars. Cars have been around since they became famous in the 1900s, whe"
+  },
+  {
+    "status": 200,
+    "guess": "human",
+    "confidence": 0.3197,
+    "model_score": 0.3542,
+    "style_score": 0.2775,
+    "sent": "Rain lashed against the canopy of the hover-cab as it wove through the"
+  },
+  {
+    "status": 200,
+    "guess": "unsure",
+    "confidence": 0.6334,
+    "model_score": 0.8616,
+    "style_score": 0.3545,
+    "sent": "Honeybees play an essential role in maintaining healthy ecosystems and"
+  },
+  {
+    "status": 400,
+    "guess": null,
+    "sent": "{\"text\": 12345, \"creator_id\": \"eval_bad_number\"}"
+  }
+]
 ```
-
+ 
+Criterion 5, by hand (`app.py::submit` and `app.py::appeal`), trial 1:
+ 
+```
+POST /submit  body: not json                → 400 invalid_json   0.011s
+POST /submit  text: 50,000 characters       → 400 text_too_long  0.006s
+POST /appeal  valid                         → 200 under_review
+POST /appeal  same content_id again         → 200 under_review ("already under review")
+POST /appeal  content_id: does-not-exist    → 404 not_found
+POST /appeal  no reasoning                  → 400 missing_reasoning
+POST /appeal  reasoning: ""                 → 400 missing_reasoning
+GET  /log     decision for 3d67c47d… still "human"/"decided", exactly one appeal entry
+POST /ping                                  → {"ok": true, "service": "provenance-guard"}
+```
+ 
 **Diagnoses**
-
-<!-- For each miss AND each broken attack: the stage and the mechanism.
-
-     Your service has five stages: the route, signal one, signal two, the
-     combining rule, and the label mapping.
-
-     Not a diagnosis:  "The evasion attacks got through."
-     A diagnosis:      "Four evasion inputs got through. All four had typos
-                        added to AI-generated text. My second signal measures
-                        word variety, and typos raise word variety — so it read
-                        them as more human. My combining rule weights that
-                        signal at 0.6, so it dragged the whole score down."
-
-     Look for a pattern. Five failures on one signal is one problem, not five. -->
-
-
+ 
+<!-- For each miss AND each broken attack: the stage and the mechanism. -->
+ 
+*Criteria 2, 3 and 4 are one problem: signal two doesn't separate AI from human on this test set, and the combining rule gives it almost half the weight.*
+ 
+- **Signal two (`stylometry.py::style_signal`) points the wrong way on two of its three measures.** Punctuation variety per 100 words is higher in the AI pieces (5.4–8.9, most above 6) than in the human ones (3.8–6.8), and moving-average TTR is higher too (AI 0.81–0.91, human 0.73–0.84). My anchors treat both as signs of a human writer, so they push AI text toward "human". Only sentence-length spread works as intended (AI 0.15–0.39, human 0.33–0.90). Ranked on its own, signal two puts the AI piece higher in 65 of 120 pairs (54%): close to a coin toss.
+- **Signal one (`detector.model_signal`) carries the separation.** On its own it ranks the AI piece higher in 95 of 120 pairs, the same 79.2% as the combined score, so adding signal two gained nothing. 7 of 10 AI pieces score above 0.70 on signal one; only 1 of 12 human pieces does (my Lao-tzu essay, 0.797). It fails on two Gemini pieces, the attic (0.50) and the neon city (0.35): descriptive fiction full of rare words ("astrolabes", "luminescent", "datapad") that GPT-2 finds surprising, so perplexity looks human.
+- **Combining rule (`scoring.py::combine_signals`).** At weight 0.45, a weak style score pulls strong signal-one scores under the AI threshold. Honeybees scores 0.86 on signal one but 0.35 on style → 0.63, "unsure". With a signal-one score of 0.86, style would need at least 0.55 to reach 0.72, and 7 of 10 AI pieces are below 0.45. The disagreement cap did not decide any of these: every AI piece's weighted average was already under 0.71 before the cap applied.
+- **Label mapping (`scoring.py::score_to_label`).** The unsure band (0.45–0.72) is wide, and with signal two flattening every score towards the middle, 16 of 22 texts land in it. That is why criterion 1 passes and criterion 2 fails: no human piece reaches 0.72, but only 4 get under 0.45.
+- **Two Gemini pieces labelled human (criterion 3's hard zero).** Both signals were low at once (attic 0.50 / 0.35, neon 0.35 / 0.28), so the combined score fell under 0.45. The AI pieces are also 105–202 words against 245–744 for the human pieces, so their sentence spread and TTR are measured on fewer sentences.
+*Criterion 5 met, with one caveat.* When `text` is a number (`12345`), `app.py::submit` logs the reason as `missing_text`. The 400 is correct, but the logged reason is wrong: the text is present, just the wrong type.
+ 
+<!-- Broken attacks (from results/attack_run_2026-11-08_1552_before.md) -->
+ 
+- **Careful human writing called AI (FP02–FP05, 0.753–0.819).** Formal, even human prose scores high on both signals at once <!-- check the two scores for FP02–FP05 in the attack file -->, so both signals agree. The disagreement cap only fires when they disagree, so nothing stops the score crossing 0.72. Stage: combining rule (no safeguard for agreeing signals) on top of signal one.
+- **Junk and non-English input scored instead of rejected (MF05 long word, MF06 emoji, MF07 Arabic → "ai"; MF03 control characters, MF04 punctuation → "human").** The route (`app.py::submit`) checks length but not whether the text is English prose, so text GPT-2 was never meant to read reaches both signals and gets a confident label. Stage: route.
+- **Injected instructions lower the score (PI01, PI02, PI05 → "human").** Text telling the reader to call it human adds varied punctuation and unusual wording. <!-- check signal one's score for PI01/PI02 --> On signal two it raises punctuation density (PI05's style score fell to 0.098). Stage: signal two, the same inverted punctuation measure as criteria 2–4.
+- **Evasion (EV05 0.261, EV08 0.443 → "human").** <!-- check EV05's edit in the attack file and name the measure it moved --> EV08 is very short, so signal two has few sentences to measure and signal one reads little. Stage: signal two / route (no minimum length worth scoring).
 
 ---
 

@@ -227,24 +227,20 @@ $ curl "http://127.0.0.1:5000/log?limit=5"
 
 ## Rate Limiting
 
-**My limits:** ___ per minute, ___ per day
+**My limits:** 5 per minute, 50 per day
 
 **Why those numbers and not others:**
-<!-- Think about two people: a real writer submitting their own work a few
-     times an hour, and a script sending a thousand variations to map your
-     thresholds. Your numbers have to be liveable for the first and hostile to
-     the second. -->
 
-**What a caller counts as:** <!-- per address, or per creator_id? They fail
-differently — one script can look like a thousand callers, and one household
-can look like one. -->
+A real writer submits a piece, maybe fixes a typo and resubmits, and might check a few drafts in an hour. Five a minute leaves room for that and for a quick retry after an error, and fifty a day covers even a very active writer. A script trying to map my thresholds needs hundreds or thousands of slightly different texts to find exactly where 0.45 and 0.72 sit; at fifty a day per caller, mapping them from one account takes weeks instead of minutes. I went lower than the starter's 10 a minute because each submission runs GPT-2, which is slow and expensive, so a burst of requests also costs real compute.
+
+**What a caller counts as:** Per `creator_id`, falling back to the caller's IP address when there's no usable `creator_id`. That stops one writer account from flooding the service, but it has a known gap: `creator_id` is whatever the caller sends, so a script that invents a new `creator_id` for every request is never limited. A per-address limit would catch that script but would also lump together everyone sharing one network, such as a classroom or a household, and could block real writers.
 
 **The run of status codes when I pushed past it:**
 
 <!-- python run_attacks.py --flood 15 -->
 
 ```
-
+200 200 200 200 200 429 429 429 429 429 429 429 429 429 429
 ```
 
 ---

@@ -369,7 +369,7 @@ I ran all 56 attacks once, before changing anything (`python run_attacks.py --se
     "model_score": 0.8005,
     "style_score": 0.8414,
     "combined_score": 0.8189,
-    "label": "This was probably written with help from AI. Our check found strong signs of machine-generated writing. Automated checks can be wrong, so the writer can ask for a person to reviewthis.",
+    "label": "This was probably written with help from AI. Our check found strong signs of machine-generated writing. Automated checks can be wrong, so the writer can ask for a person to review this.",
     "status": "decided"
   },
   {
@@ -402,7 +402,7 @@ I ran all 56 attacks once, before changing anything (`python run_attacks.py --se
     "model_score": 0.9969,
     "style_score": 0.75,
     "combined_score": 0.8858,
-    "label": "This was probably written with help from AI. Our check found strong signs of machine-generated writing. Automated checks can be wrong, so the writer can ask for a person to reviewthis.",
+    "label": "This was probably written with help from AI. Our check found strong signs of machine-generated writing. Automated checks can be wrong, so the writer can ask for a person to review this.",
     "status": "decided"
   },
   {
@@ -413,7 +413,7 @@ I ran all 56 attacks once, before changing anything (`python run_attacks.py --se
     "model_score": 0.9064,
     "style_score": 0.75,
     "combined_score": 0.836,
-    "label": "This was probably written with help from AI. Our check found strong signs of machine-generated writing. Automated checks can be wrong, so the writer can ask for a person to reviewthis.",
+    "label": "This was probably written with help from AI. Our check found strong signs of machine-generated writing. Automated checks can be wrong, so the writer can ask for a person to review this.",
     "status": "decided"
   },
   {

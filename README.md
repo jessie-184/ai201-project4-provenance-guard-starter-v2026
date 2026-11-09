@@ -327,6 +327,7 @@ I ran all 56 attacks once, before changing anything (`python run_attacks.py --se
 **Ten audit log entries from the run**
 
 ```json
+[
   {
     "timestamp": "2026-11-08T20:52:16+00:00",
     "content_id": "e0045851-5d45-4052-88e7-7b953cdc4fd2",
@@ -346,7 +347,7 @@ I ran all 56 attacks once, before changing anything (`python run_attacks.py --se
     "model_score": 0.7387,
     "style_score": 0.8454,
     "combined_score": 0.7867,
-    "label": "This was probably written with help from AI. Our check found strong signs of machine-generated writing. Automated checks can be wrong, so the writer can ask for a person to reviewthis.",
+    "label": "This was probably written with help from AI. Our check found strong signs of machine-generated writing. Automated checks can be wrong, so the writer can ask for a person to review this.",
     "status": "decided"
   },
   {
@@ -357,7 +358,7 @@ I ran all 56 attacks once, before changing anything (`python run_attacks.py --se
     "model_score": 0.8051,
     "style_score": 0.7056,
     "combined_score": 0.7603,
-    "label": "This was probably written with help from AI. Our check found strong signs of machine-generated writing. Automated checks can be wrong, so the writer can ask for a person to reviewthis.",
+    "label": "This was probably written with help from AI. Our check found strong signs of machine-generated writing. Automated checks can be wrong, so the writer can ask for a person to review this.",
     "status": "decided"
   },
   {
@@ -430,6 +431,7 @@ I ran all 56 attacks once, before changing anything (`python run_attacks.py --se
     "reason": "rate_limited",
     "limit": "5 per 1 minute"
   }
+]
 ```
 
 **The single worst outcome** — the one I'd least want to explain to a writer whose work got caught by it:

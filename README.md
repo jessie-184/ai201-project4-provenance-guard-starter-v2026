@@ -683,6 +683,27 @@ After the improvement, 11 of 56 attacks still get through and criterion 3 is sti
 I would lean toward fewer wrong accusations: keep the AI threshold at 0.72 or raise it, and treat "unsure" as the default for anything my two signals can't separate, even though that already lets 7 of my 10 test AI pieces through without an AI label. The people who pay for that are the honest writers on the site, who compete with AI-written work that goes unflagged, and the readers who trust the label; I accept that cost because the other direction is paid by individual writers like FP02 and FP05, who in my own after run are still wrongly called AI for writing formally or plainly, and they have no easy way to prove otherwise.
 
 
+# Unit 9 — Capstone
+
+## What This Extends
+
+Provenance Guard, the text-provenance service I built in units 7 and 8. It is a Flask service: `POST /submit` scores a piece of writing with two signals, a GPT-2 perplexity score (`detector.py::model_signal`) and a sentence-length spread score (`stylometry.py::style_signal`), combines them in `scoring.py::combine_signals`, and returns one of three labels: human, unsure or AI. Writers can appeal a label through `POST /appeal`, submissions are rate-limited per creator (5 a minute, 50 a day), and every decision, appeal and rejection is written to `logs/audit.jsonl`.
+
+**What's new:** an input gate in `app.py::submit`. It runs after the existing JSON and field checks and before either signal. It refuses text the signals can't meaningfully score with a 400 and a reason code, and logs the refusal with `audit.log_rejection`, the same way the existing rejections are logged.
+
+**Why:** my Unit 8 after run showed that junk input still gets a confident label. MF03 (control characters) came back human at 0.225 and MF04 (punctuation only) came back human at 0.231. MF05, MF06 and MF07 (one very long word, emoji only, Arabic) all came back unsure at 0.710. That is the disagreement cap holding them just under the AI threshold, not anything noticing the input was junk.
+
+## The Shape
+
+**Shape B: harden against failure.** My criteria are about the bad path: what Provenance Guard does with input it shouldn't be scoring at all. Today the route only refuses text that is missing, empty, over 10,000 characters, or too short to give GPT-2 three tokens. Everything else reaches both signals and gets a label. The gate adds one check in between: text with too few real words to score, or text that is mostly not English letters, is refused before signal one or signal two runs. Provenance Guard is built for English only: GPT-2 was trained on English text, and the style signal's word splitter only recognises the letters a–z, digits and apostrophes. So text that isn't English is refused rather than given a label the signals can't support. Text that passes the gate is scored exactly as before. The signals, weights, thresholds and label text don't change.
+
+**Out of scope:**
+
+- **Short AI text (EV08, 10 words → human).** No word count separates it from FP08, a genuine 8-word human submission, so a length rule strict enough to stop EV08 would refuse real writers.
+- **Flagging prompt injection** (PI01, PI02 and PI05 still come back human). A list of patterns is easy to get around and could strip real writing, so it needs its own test set first.
+- **Replacing GPT-2 with a larger detector model.** It's the likeliest fix for my Unit 8 criterion 3 misses, but it's a separate project. It would also change every score, so I couldn't tell what the gate did.
+
+
 <!-- ═════════════════════════════════════════════════════════════════════
 
      SUBMISSION CHECKLIST — unit 7

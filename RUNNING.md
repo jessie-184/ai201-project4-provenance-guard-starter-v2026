@@ -8,6 +8,126 @@ assumed — the starter ships one that already answers.
 
 ---
 
+## Unit 9 capstone — running it (Path B: local, with logs)
+
+This is how the capstone version runs. It runs on one machine; it is not
+hosted (GPT-2 plus torch doesn't fit a 512 MB free tier — see
+[Running it somewhere else](#running-it-somewhere-else-unit-9)).
+
+### Start command
+
+From the repo folder, with the virtual environment active:
+
+```bash
+python app.py
+```
+
+It serves on `http://127.0.0.1:5000`. Every request to `/submit` writes one
+JSON line to `logs/audit.jsonl`; that file is the run record.
+
+### Environment
+
+| What | Version / size |
+|---|---|
+| Python | 3.13.15 (3.11–3.13 supported; **not** 3.14) |
+| Tested on | Apple M4 Pro, 24 GB RAM, macOS 27.0.1, CPU only |
+| GPT-2 model files | 525 MB on disk (`du -sh ~/.cache/huggingface/hub/models--gpt2`), downloaded on first use |
+| Free disk | `test.py` asks for about 9 GB — torch is most of it |
+| API keys | none |
+
+`requirements.txt` gives version ranges. The exact versions this was run with
+(`pip freeze`) are:
+
+<details>
+<summary>Exact installed versions (40 packages)</summary>
+
+```
+blinker==1.9.0
+certifi==2026.10.23
+charset-normalizer==3.5.2
+click==8.5.0
+Deprecated==3.0.0
+filelock==4.2.4
+Flask==3.1.3
+Flask-Limiter==3.12
+fsspec==2026.9.0
+gunicorn==23.0.0
+hf-xet==1.7.1
+huggingface_hub==0.36.2
+idna==3.20
+itsdangerous==2.2.0
+Jinja2==3.1.6
+limits==5.8.0
+markdown-it-py==4.2.0
+MarkupSafe==3.0.4
+mdurl==0.1.2
+mpmath==1.3.0
+networkx==3.7
+numpy==2.5.4
+ordered-set==4.1.0
+packaging==26.3
+Pygments==2.21.0
+PyYAML==6.0.3
+regex==2026.9.29
+requests==2.34.2
+rich==13.9.4
+safetensors==0.8.0
+setuptools==84.2.1
+sympy==1.14.0
+tokenizers==0.22.2
+torch==2.15.0
+tqdm==4.70.1
+transformers==4.57.6
+typing_extensions==4.16.0
+urllib3==2.8.0
+Werkzeug==3.1.9
+wrapt==2.5.1
+```
+
+</details>
+
+### From a fresh clone
+
+```bash
+git clone https://github.com/jessie-184/ai201-project4-provenance-guard-starter-v2026.git
+cd ai201-project4-provenance-guard-starter-v2026
+python3.13 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python test.py                     # should end "9 passed, 0 failed"
+python detector.py                 # downloads GPT-2 (525 MB) once, scores a sample
+python app.py
+```
+
+Then, in a second terminal:
+
+```bash
+curl -X POST http://127.0.0.1:5000/submit \
+  -H "Content-Type: application/json" \
+  -d '{"text": "We got to the campsite about four. The pitch was fine, a bit sloped.", "creator_id": "me"}'
+curl "http://127.0.0.1:5000/log?limit=1"
+```
+
+### Things that will catch you out
+
+- **The first `/submit` after starting is slow** (4.2 s measured) because it
+  loads GPT-2 into memory. After that a submission takes about 50 ms.
+  `GET /health` shows `"detector_loaded": true` once it's warm.
+- **Debug mode restarts the server when a `.py` file changes.** The restart
+  unloads the model (the next request is cold again) and forgets every
+  rate-limit count. Don't edit code during a measured run.
+- **Stop it with Ctrl+C in its own terminal.** Debug mode runs two `Python
+  app.py` processes; killing only one can leave the other holding port 5000,
+  and the next `python app.py` then fails with "Address already in use".
+- **macOS AirPlay Receiver also listens on port 5000.** It didn't stop the
+  service binding to `127.0.0.1:5000` here, but if you get "Address already in
+  use", check `lsof -nP -iTCP:5000 -sTCP:LISTEN`.
+- **The rate limit is 5 a minute per `creator_id`, and refused requests count
+  too.** Sending a sixth request from one `creator_id` inside a minute gets a
+  429. Use a different `creator_id` per test input.
+
+---
+
 ## Before your first class
 
 ```bash

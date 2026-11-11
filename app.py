@@ -24,6 +24,7 @@ Routes:
     GET  /health      is the service up, and is the model loaded
 """
 
+import re
 import uuid
 
 from flask import Flask, jsonify, request
@@ -160,6 +161,27 @@ def _reject(creator_id, reason, message, status=400):
     return jsonify({"error": reason, "message": message}), status
 
 
+# ── Input gate — UNIT 9 capstone. Rules and numbers live in config.py ────────
+_REAL_WORD = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?")
+
+
+def _gate(text):
+    """
+    Can the signals meaningfully score this text? Returns None if yes, or
+    (reason, message) if it should be refused before either signal runs.
+    """
+    visible = [c for c in text if not c.isspace()]
+    letters = sum(1 for c in visible if c.isascii() and c.isalpha())
+    if letters / len(visible) < config.GATE_MIN_LETTER_SHARE:
+        return ("not_english_text",
+                "This service only scores English writing, and most of this "
+                "text isn't English letters.")
+    if len(_REAL_WORD.findall(text)) < config.GATE_MIN_WORDS:
+        return ("too_few_words",
+                f"'text' needs at least {config.GATE_MIN_WORDS} words to score.")
+    return None
+
+
 @app.post("/submit")
 @limiter.limit(f"{config.RATE_LIMIT_PER_MINUTE}/minute;{config.RATE_LIMIT_PER_DAY}/day")
 def submit():
@@ -185,6 +207,11 @@ def submit():
     if len(text) > MAX_TEXT_CHARS:
         return _reject(creator_id, "text_too_long",
                        f"'text' is over {MAX_TEXT_CHARS} characters.")
+
+    # ── Input gate: refuse what the signals can't meaningfully score ──────
+    refused = _gate(text)
+    if refused:
+        return _reject(creator_id, *refused)
 
     # ── Signal one ──────────────────────────────────────────────────────────
     try:

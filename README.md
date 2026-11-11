@@ -683,7 +683,7 @@ After the improvement, 11 of 56 attacks still get through and criterion 3 is sti
 I would lean toward fewer wrong accusations: keep the AI threshold at 0.72 or raise it, and treat "unsure" as the default for anything my two signals can't separate, even though that already lets 7 of my 10 test AI pieces through without an AI label. The people who pay for that are the honest writers on the site, who compete with AI-written work that goes unflagged, and the readers who trust the label; I accept that cost because the other direction is paid by individual writers like FP02 and FP05, who in my own after run are still wrongly called AI for writing formally or plainly, and they have no easy way to prove otherwise.
 
 
-# Unit 9 — Capstone
+# Capstone
 
 ## What This Extends
 

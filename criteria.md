@@ -140,3 +140,61 @@ The detector errors on text under 3 tokens and only reads about 400, so short an
      A number you missed stays where it is, gets diagnosed, and gets a fix
      attempted. That's where the points are.
      ───────────────────────────────────────────────────────────────────────── -->
+
+---
+
+# Unit 9 — Capstone criteria
+
+Written on 2026-11-11, before any capstone results. They test the input gate added to `app.py::submit` this unit, its logging, and the bad path. Criteria 1–4 are about the extension; 1, 2 and 4 are about what happens when input is bad.
+
+**Trials.** Everything runs three times with nothing changed in between. A target counts as met only if it holds in all three.
+
+---
+
+## 1.
+
+Of 10 fresh English texts of 20 words or more, each with at least one ASCII control character inserted (codes 0–8, 11, 12, 14–31 or 127; tab, newline and carriage return don't count), **10 of 10** are refused with a 400 and **none** gets a `decided` line in `logs/audit.jsonl`, in every one of the three trials.
+
+**Why this target:**
+
+No person types a null byte or a terminal escape code into a piece of writing. A text carrying one was made or altered by a program, and scoring it gives junk a confident label, which is exactly what the gate exists to stop (MF03 came back "human" in Unit 8). One scored control-character text is one too many, so the target is all ten, not most.
+
+---
+
+## 2.
+
+Of 10 fresh non-English texts of 20 words or more — 5 in non-Latin scripts (Arabic, Russian, Chinese, Hindi, Korean) and 5 in Latin-script languages (Spanish, French, German, Vietnamese, Indonesian), one per language — at least **9 of 10** are refused with a 400, in every one of the three trials.
+
+**Why this target:**
+
+GPT-2 was trained on English, and my style signal only recognises a–z, so a label on another language means nothing, and my README says the service only scores English. I allow one miss, not zero, because a Latin-script language can share enough letters and short words with English that refusing it would need a language detector, which is out of scope. More than one miss means the gate isn't doing what the README says.
+
+---
+
+## 3.
+
+Of 20 fresh, genuinely human short texts (3–30 words, informal, which may include punctuation and up to 6 emoji), written by me or by classmates, **0** are refused by the gate (no `not_english_text` or `too_few_words`), in every one of the three trials.
+
+**Why this target:**
+
+A refused submission gets no `content_id`, and `/appeal` needs one, so a writer the gate wrongly refuses has no way to appeal. That is worse than a wrong label, which at least can be challenged. The gate is meant to stop junk, not short real writing, so the target is zero wrongly refused writers. I allow up to 6 emoji because that is how I actually write short messages (one of my own texts has six), and a gate that only passes emoji-light writing would be tested on a writer who doesn't exist. Texts under 3 words are left out because the gate refuses them by design (`GATE_MIN_WORDS = 3`), so they can't show over-refusal.
+
+---
+
+## 4.
+
+For a fixed set of 10 bad requests to `/submit` — invalid JSON, missing `creator_id`, missing `text`, empty `text`, `text` over 10,000 characters, a punctuation-only text, a one-word text, a rate-limited request (the 6th from one `creator_id` within a minute; the first five aren't counted), and two English texts containing control characters — each produces exactly **one** `rejected` line in `logs/audit.jsonl` with a non-null `reason` and `duration_ms`: **10 of 10**, in every one of the three trials.
+
+**Why this target:**
+
+An attack that shows up only as an absence is one I'll never find. Every bad request has to leave a record that says what was wrong and how long it took, or I can't diagnose it later. A record for nine out of ten still leaves one bad path invisible, so the target is all ten.
+
+---
+
+## 5.
+
+On a warm model (`/health` shows `"detector_loaded": true` before the first timed request), at least **29 of 30** fresh English submissions of 100–400 words finish with `duration_ms` at or under **150 ms**, in every one of the three trials.
+
+**Why this target:**
+
+Measured in Milestone 3 on texts of 106–202 words, a warm submission took 48.2 ms on average and 65.6 ms at most. 150 ms is about twice that worst case, which allows for longer texts (GPT-2 reads up to 400 tokens) without letting a real slowdown through. One slow request in thirty is allowed for a one-off pause on my laptop; more than one means scoring itself is slower than I measured. This is a warm-model criterion; the cold first request (about 4–5.5 s) is not part of it.

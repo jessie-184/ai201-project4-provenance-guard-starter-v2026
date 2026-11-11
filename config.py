@@ -112,6 +112,14 @@ GATE_MIN_WORDS = 3
 GATE_MIN_LETTER_SHARE = 0.70
 
 
+# ─── Structured logging (UNIT 9 capstone) ────────────────────────────────────
+# Every /submit log record also carries duration_ms, text_chars, word_count
+# and the first LOG_EXCERPT_CHARS characters of the text. The log is committed
+# to a public repo, so it keeps an excerpt, not whole submissions.
+
+LOG_EXCERPT_CHARS = 60
+
+
 # ─── Rate limiting (UNIT 8) ──────────────────────────────────────────────────
 # Off in unit 7. You turn it on and choose the numbers in unit 8, Milestone 1.
 #

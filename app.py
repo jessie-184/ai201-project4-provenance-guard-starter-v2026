@@ -25,9 +25,10 @@ Routes:
 """
 
 import re
+import time
 import uuid
 
-from flask import Flask, jsonify, request
+from flask import Flask, g, jsonify, request
 
 import audit
 import config
@@ -36,6 +37,30 @@ import scoring
 import stylometry
 
 app = Flask(__name__)
+
+
+# ── Request timing — UNIT 9 capstone ─────────────────────────────────────────
+# Registered BEFORE the rate limiter below, so this hook runs first and a 429
+# is timed from the start of the request like everything else.
+
+@app.before_request
+def _start_timer():
+    g.start = time.perf_counter()
+
+
+def _request_fields(text=None):
+    """
+    What came in and how long it took. Added to every /submit log record —
+    decisions, refusals and 429s — next to the nine original fields.
+    """
+    start = g.get("start")
+    is_text = isinstance(text, str)
+    return {
+        "duration_ms": round((time.perf_counter() - start) * 1000, 1) if start else None,
+        "text_chars": len(text) if is_text else None,
+        "word_count": len(_REAL_WORD.findall(text)) if is_text else None,
+        "text_excerpt": text[:config.LOG_EXCERPT_CHARS] if is_text else None,
+    }
 
 
 # ── Rate limiting — UNIT 8 ────────────────────────────────────────────────────
@@ -111,6 +136,7 @@ if config.RATE_LIMITING_ENABLED:
             creator_id=payload.get("creator_id", "unknown"),
             reason="rate_limited",
             limit=str(exc.description),
+            **_request_fields(payload.get("text")),
         )
         return jsonify({
             "error": "rate_limited",
@@ -155,9 +181,10 @@ def health():
 MAX_TEXT_CHARS = 10_000   # longer input is rejected before it reaches the model
 
 
-def _reject(creator_id, reason, message, status=400):
+def _reject(creator_id, reason, message, status=400, text=None):
     """Refuse a request, leave a trace in the audit log, and tell the caller why."""
-    audit.log_rejection(creator_id=creator_id or "unknown", reason=reason)
+    audit.log_rejection(creator_id=creator_id or "unknown", reason=reason,
+                        **_request_fields(text))
     return jsonify({"error": reason, "message": message}), status
 
 
@@ -198,30 +225,32 @@ def submit():
 
     if not isinstance(creator_id, str) or not creator_id.strip():
         return _reject(None, "missing_creator_id",
-                       "'creator_id' is required and must be a non-empty string.")
+                       "'creator_id' is required and must be a non-empty string.", text=text)
     if not isinstance(text, str):
         return _reject(creator_id, "missing_text",
                        "'text' is required and must be a string.")
     if not text.strip():
-        return _reject(creator_id, "empty_text", "'text' is empty.")
+        return _reject(creator_id, "empty_text", "'text' is empty.", text=text)
     if len(text) > MAX_TEXT_CHARS:
         return _reject(creator_id, "text_too_long",
-                       f"'text' is over {MAX_TEXT_CHARS} characters.")
+                       f"'text' is over {MAX_TEXT_CHARS} characters.", text=text)
 
     # ── Input gate: refuse what the signals can't meaningfully score ──────
     refused = _gate(text)
     if refused:
-        return _reject(creator_id, *refused)
+        return _reject(creator_id, *refused, text=text)
 
     # ── Signal one ──────────────────────────────────────────────────────────
     try:
         model_score = detector.model_signal(text)
     except ValueError:
         return _reject(creator_id, "text_too_short",
-                       "'text' is too short to score. Send a few sentences at least.")
+                       "'text' is too short to score. Send a few sentences at least.",
+                       text=text)
     except detector.DetectorUnavailable:
         return _reject(creator_id, "detector_unavailable",
-                       "The detector model isn't loaded. Run `python detector.py` once.", 503)
+                       "The detector model isn't loaded. Run `python detector.py` once.", 503,
+                       text=text)
 
     # ── Signal two, then combine and label ──────────────────────────────────
     style_score = stylometry.style_signal(text)
@@ -238,6 +267,7 @@ def submit():
         combined_score=combined,
         label=label,
         status="decided",
+        **_request_fields(text),
     )
 
     return jsonify({

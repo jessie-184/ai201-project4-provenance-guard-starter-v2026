@@ -703,6 +703,57 @@ Provenance Guard, the text-provenance service I built in units 7 and 8. It is a 
 - **Flagging prompt injection** (PI01, PI02 and PI05 still come back human). A list of patterns is easy to get around and could strip real writing, so it needs its own test set first.
 - **Replacing GPT-2 with a larger detector model.** It's the likeliest fix for my Unit 8 criterion 3 misses, but it's a separate project. It would also change every score, so I couldn't tell what the gate did.
 
+## Running It
+
+**Path B: local, with logs.** GPT-2 plus torch needs well over the 512 MB a free host gives (the GPT-2 files alone are 525 MB on disk), so the service runs on my own machine with `python app.py`, and `logs/audit.jsonl` is the record of it running. [RUNNING.md](RUNNING.md#unit-9-capstone--running-it-path-b-local-with-logs) has the start command, the Python version, the exact package versions, the model size, and what broke when I followed it from a fresh clone.
+
+## Instrumentation
+
+Every request to `POST /submit` writes one JSON line to `logs/audit.jsonl` (`audit.py::_append`): decisions, refusals and rate-limit 429s alike. The nine original fields are unchanged, so old and new entries stay comparable. Four fields are new this unit, added in `app.py::_request_fields`:
+
+| Field | What it holds |
+|---|---|
+| `timestamp` | When the record was written, UTC, to the second |
+| `creator_id` | Who sent it (`"unknown"` if the body had none) |
+| `text_chars`, `word_count`, `text_excerpt` | **What came in:** length in characters, real words (the gate's definition), and the first 60 characters. Only an excerpt, because this file is committed to a public repo. `null` when the body had no text |
+| `guess`, `model_score`, `style_score`, `combined_score`, `label`, `content_id`, `status: "decided"` | **What came out**, for a decision |
+| `event: "rejected"`, `reason` (and `limit` for a 429) | **What came out**, for a refusal |
+| `duration_ms` | **How long it took:** from the start of the request (a `before_request` hook registered before the rate limiter, so 429s are timed too) to just before the record is written. Server time only; it doesn't include the network or the client |
+
+Eleven entries from the cost run below (log lines 366, 367, 368, 371 and 377–381, 386, 387). The first is the cold first request, then three warm decisions, then one of each failure path, ending in a 429:
+
+```json
+{"timestamp": "2026-11-11T06:13:23+00:00", "content_id": "37469f59-818a-4f34-b6bf-0934fab071fe", "creator_id": "m3cold_FP01", "guess": "human", "model_score": 0.6175, "style_score": 0.2313, "combined_score": 0.4437, "label": "This looks like it was written by a person. Our check found the patterns we usually see in human writing.", "status": "decided", "duration_ms": 4248.9, "text_chars": 523, "word_count": 103, "text_excerpt": "We got to the campsite about four. The pitch was fine, a bit"}
+{"timestamp": "2026-11-11T06:13:23+00:00", "content_id": "663b5b65-f17b-4589-9f3a-7eb76161cc0a", "creator_id": "m3cost_01", "guess": "unsure", "model_score": 0.5025, "style_score": 0.5143, "combined_score": 0.5078, "label": "We can't tell whether this was written by a person or with help from AI. A lot of genuine writing looks like this, so this isn't a sign that anything is wrong. If you wrote this and want a person to take a look, you can ask for a review.", "status": "decided", "duration_ms": 51.7, "text_chars": 721, "word_count": 119, "text_excerpt": "Dust motes danced in the slanted afternoon light, illuminate"}
+{"timestamp": "2026-11-11T06:13:23+00:00", "content_id": "3511455e-2992-4c9d-abf7-f93822984d80", "creator_id": "m3cost_02", "guess": "human", "model_score": 0.3542, "style_score": 0.4842, "combined_score": 0.4127, "label": "This looks like it was written by a person. Our check found the patterns we usually see in human writing.", "status": "decided", "duration_ms": 42.5, "text_chars": 650, "word_count": 106, "text_excerpt": "Rain lashed against the canopy of the hover-cab as it wove t"}
+{"timestamp": "2026-11-11T06:13:23+00:00", "content_id": "25bc0342-5542-4b60-9d74-8bc47168c63a", "creator_id": "m3cost_05", "guess": "ai", "model_score": 0.8418, "style_score": 0.759, "combined_score": 0.8045, "label": "This was probably written with help from AI. Our check found strong signs of machine-generated writing. Automated checks can be wrong, so the writer can ask for a person to review this.", "status": "decided", "duration_ms": 54.7, "text_chars": 1255, "word_count": 190, "text_excerpt": "Many people believe that success comes primarily from talent"}
+{"timestamp": "2026-11-11T06:13:23+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "invalid_json", "duration_ms": 0.2, "text_chars": null, "word_count": null, "text_excerpt": null}
+{"timestamp": "2026-11-11T06:13:23+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_creator_id", "duration_ms": 0.1, "text_chars": 21, "word_count": 4, "text_excerpt": "Some real words here."}
+{"timestamp": "2026-11-11T06:13:23+00:00", "creator_id": "m3fail_empty", "event": "rejected", "status": "rejected", "reason": "empty_text", "duration_ms": 0.1, "text_chars": 3, "word_count": 0, "text_excerpt": "   "}
+{"timestamp": "2026-11-11T06:13:23+00:00", "creator_id": "m3fail_MF04", "event": "rejected", "status": "rejected", "reason": "not_english_text", "duration_ms": 0.1, "text_chars": 31, "word_count": 0, "text_excerpt": "!!! ??? ... ,,, ;;; --- ((( )))"}
+{"timestamp": "2026-11-11T06:13:23+00:00", "creator_id": "m3fail_MF02", "event": "rejected", "status": "rejected", "reason": "too_few_words", "duration_ms": 0.1, "text_chars": 1, "word_count": 1, "text_excerpt": "a"}
+{"timestamp": "2026-11-11T06:13:23+00:00", "creator_id": "m3flood", "event": "rejected", "status": "rejected", "reason": "not_english_text", "duration_ms": 0.1, "text_chars": 7, "word_count": 0, "text_excerpt": "!!! ???"}
+{"timestamp": "2026-11-11T06:13:23+00:00", "creator_id": "m3flood", "event": "rejected", "status": "rejected", "reason": "rate_limited", "limit": "5 per 1 minute", "duration_ms": 0.1, "text_chars": 7, "word_count": 0, "text_excerpt": "!!! ???"}
+```
+
+All eleven share one timestamp because the timestamp is only to the second and the whole run after the cold request took about half a second; each decision has its own `content_id`. Entries written before 2026-11-11 (units 7–8) don't have the four new fields.
+
+## What It Costs
+
+There's no API bill: GPT-2 runs on my laptop, so the cost of one run is **compute time**.
+
+**Measured: 48.2 ms per submission on a warm model** (mean of 10), and **4,248.9 ms for the first submission after starting**, which loads GPT-2 into memory. A request the gate refuses costs about 0.1 ms, because it never reaches either signal.
+
+How I measured it, on 2026-11-11:
+
+- Machine: Apple M4 Pro, 24 GB RAM, macOS 27.0.1, CPU only, nothing else running against the service.
+- Started the service fresh with `python app.py`. `/health` showed `"detector_loaded": false`.
+- One cold request (FP01, 103 words) to load the model: 4,248.9 ms. `/health` then showed `"detector_loaded": true`.
+- Ten warm requests, one after another: the 10 AI texts in `scenarios.py` ("AI from three tools", 106–202 words each), each with its own `creator_id` so the rate limiter never fired.
+- The numbers are the `duration_ms` values from those ten records in `logs/audit.jsonl` (lines 367–376): 51.7, 42.5, 41.4, 65.6, 54.7, 55.1, 42.0, 42.9, 44.3, 41.7. Sum 481.9 ms ÷ 10 = **48.2 ms**. Median 43.6 ms, min 41.4 ms, max 65.6 ms.
+
+Two other cold starts I recorded: 5,037.7 ms (the clean-checkout test in RUNNING.md) and 5,340.2 ms (log line 344, an earlier run of the same measurement). I reran that earlier one because the server it hit had been restarted by debug mode's file watcher rather than started by me. Its warm mean was 55.1 ms (log lines 345–354). So a cold start is 4–5.5 s on this machine and a warm submission is roughly 40–85 ms.
+
 
 <!-- ═════════════════════════════════════════════════════════════════════
 

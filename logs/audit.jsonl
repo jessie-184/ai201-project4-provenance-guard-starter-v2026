@@ -331,3 +331,13 @@
 {"timestamp": "2026-11-08T23:48:35+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "invalid_json"}
 {"timestamp": "2026-11-08T23:48:35+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "invalid_json"}
 {"timestamp": "2026-11-08T23:49:21+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "invalid_json"}
+{"timestamp": "2026-11-11T06:06:05+00:00", "content_id": "dd3c003d-aaa5-4500-bb75-5dd89fc6ddab", "creator_id": "m2check_human", "guess": "human", "model_score": 0.6175, "style_score": 0.2313, "combined_score": 0.4437, "label": "This looks like it was written by a person. Our check found the patterns we usually see in human writing.", "status": "decided"}
+{"timestamp": "2026-11-11T06:06:05+00:00", "content_id": "bbb7fe37-925c-435a-bdee-5e82905ea48a", "creator_id": "m2check_ai", "guess": "ai", "model_score": 0.8418, "style_score": 0.759, "combined_score": 0.8045, "label": "This was probably written with help from AI. Our check found strong signs of machine-generated writing. Automated checks can be wrong, so the writer can ask for a person to review this.", "status": "decided"}
+{"timestamp": "2026-11-11T06:06:05+00:00", "content_id": "0d7d2e52-7749-4fe2-8532-8e722744707f", "creator_id": "m2check_fp08", "guess": "human", "model_score": 0.3223, "style_score": 0.2925, "combined_score": 0.3089, "label": "This looks like it was written by a person. Our check found the patterns we usually see in human writing.", "status": "decided"}
+{"timestamp": "2026-11-11T06:06:05+00:00", "content_id": "dd3c003d-aaa5-4500-bb75-5dd89fc6ddab", "creator_id": "m2check_human", "event": "appeal", "status": "under_review", "reasoning": "M2 check: I wrote this myself."}
+{"timestamp": "2026-11-11T06:06:05+00:00", "creator_id": "m2check_MF02", "event": "rejected", "status": "rejected", "reason": "too_few_words"}
+{"timestamp": "2026-11-11T06:06:05+00:00", "creator_id": "m2check_MF03", "event": "rejected", "status": "rejected", "reason": "not_english_text"}
+{"timestamp": "2026-11-11T06:06:05+00:00", "creator_id": "m2check_MF04", "event": "rejected", "status": "rejected", "reason": "not_english_text"}
+{"timestamp": "2026-11-11T06:06:05+00:00", "creator_id": "m2check_MF05", "event": "rejected", "status": "rejected", "reason": "too_few_words"}
+{"timestamp": "2026-11-11T06:06:05+00:00", "creator_id": "m2check_MF06", "event": "rejected", "status": "rejected", "reason": "not_english_text"}
+{"timestamp": "2026-11-11T06:06:05+00:00", "creator_id": "m2check_MF07", "event": "rejected", "status": "rejected", "reason": "not_english_text"}

@@ -89,6 +89,29 @@ AI_THRESHOLD = 0.72
 # prints the bands; the reachable range is a different question.
 
 
+# ─── Input gate (UNIT 9 capstone) ────────────────────────────────────────────
+# Runs in app.py::submit after the JSON and field checks and before either
+# signal. Text that fails either rule is refused with a 400 and never scored.
+#
+#   letter share  A–Z letters ÷ all non-whitespace characters. Below
+#                 GATE_MIN_LETTER_SHARE -> refused as "not_english_text".
+#                 Checked first, so emoji, Arabic, punctuation and control
+#                 characters are reported as not English, not as too short.
+#   real words    runs of A–Z letters, one internal apostrophe allowed
+#                 ("don't"). Fewer than GATE_MIN_WORDS -> "too_few_words".
+#
+# Why these numbers (measured on the Unit 8 attack set and scenarios.py):
+# every real human or AI text there has 8+ words and a letter share of 0.876
+# or more (lowest PI05 0.876, FP08 0.897). The junk is far below: MF03 0.474,
+# MF01/04/06/07 0.000, MF02 and MF05 one word each. 0.70 sits in that gap,
+# and 3 words leaves room under FP08 (8 words, genuine human) for very short
+# real writing. Short AI text like EV08 (10 words) is out of scope: no word
+# count separates it from FP08.
+
+GATE_MIN_WORDS = 3
+GATE_MIN_LETTER_SHARE = 0.70
+
+
 # ─── Rate limiting (UNIT 8) ──────────────────────────────────────────────────
 # Off in unit 7. You turn it on and choose the numbers in unit 8, Milestone 1.
 #

@@ -94,19 +94,42 @@ cd ai201-project4-provenance-guard-starter-v2026
 python3.13 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python test.py                     # should end "9 passed, 0 failed"
+python test.py                     # no FAIL lines; "Detector model" is a WARN until the next step
 python detector.py                 # downloads GPT-2 (525 MB) once, scores a sample
 python app.py
 ```
 
-Then, in a second terminal:
+Wait until the first terminal prints `Debugger PIN: …`. Debug mode starts the
+server, then restarts it once; a request sent before that line can get an empty
+reply. Then, in a second terminal:
 
 ```bash
+curl http://127.0.0.1:5000/health               # "ok": true
 curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
   -d '{"text": "We got to the campsite about four. The pitch was fine, a bit sloped.", "creator_id": "me"}'
 curl "http://127.0.0.1:5000/log?limit=1"
 ```
+
+### What the clean-checkout test found
+
+I cloned the repo into a new folder on 2026-11-11 and followed the steps above
+exactly, with a fresh virtual environment. What happened:
+
+- `pip install -r requirements.txt` worked (46 s, but pip reused wheels it had
+  already downloaded for my main checkout; a first-ever install downloads torch
+  and takes longer).
+- `python test.py` passed 9 of 9 and `python detector.py` scored its sample
+  without downloading anything, **because GPT-2 was already in
+  `~/.cache/huggingface` on this machine.** That cache is shared between
+  checkouts, so this test could not show the download step. On a machine
+  without it, expect the WARN and the 525 MB download.
+- **The first two `curl` commands came back empty.** I sent them straight after
+  `python app.py`, while debug mode was still restarting. Sent again after
+  `Debugger PIN` appeared, they worked: the submission came back `unsure`
+  (0.6425) and `/log?limit=1` showed its entry with `duration_ms` 5037.7, the
+  cold first request. Fix: the "wait until `Debugger PIN`" line above, and a
+  `/health` check first.
 
 ### Things that will catch you out
 

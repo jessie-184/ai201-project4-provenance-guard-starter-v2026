@@ -190,6 +190,9 @@ def _reject(creator_id, reason, message, status=400, text=None):
 
 # ── Input gate — UNIT 9 capstone. Rules and numbers live in config.py ────────
 _REAL_WORD = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?")
+# ASCII control characters except tab, newline and carriage return (codes 0–8,
+# 11, 12, 14–31 and 127). Nobody types these into writing.
+_CONTROL_CHAR = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
 def _gate(text):
@@ -197,6 +200,12 @@ def _gate(text):
     Can the signals meaningfully score this text? Returns None if yes, or
     (reason, message) if it should be refused before either signal runs.
     """
+    # Checked first and on its own: one control character barely moves the
+    # letter share, and Python treats some (0x0B, 0x0C, 0x1C–0x1F) as spaces.
+    if _CONTROL_CHAR.search(text):
+        return ("control_characters",
+                "'text' contains control characters (such as null bytes or "
+                "terminal escape codes), which don't belong in writing.")
     visible = [c for c in text if not c.isspace()]
     letters = sum(1 for c in visible if c.isascii() and c.isalpha())
     if letters / len(visible) < config.GATE_MIN_LETTER_SHARE:

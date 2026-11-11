@@ -91,12 +91,16 @@ AI_THRESHOLD = 0.72
 
 # ─── Input gate (UNIT 9 capstone) ────────────────────────────────────────────
 # Runs in app.py::submit after the JSON and field checks and before either
-# signal. Text that fails either rule is refused with a 400 and never scored.
+# signal. Text that fails any rule is refused with a 400 and never scored.
 #
+#   control chars any ASCII control character except tab, newline and
+#                 carriage return -> "control_characters". Checked first.
+#                 Added in Milestone 6: the before run scored all 10
+#                 control-character texts (criteria 1 and 4).
 #   letter share  A–Z letters ÷ all non-whitespace characters. Below
 #                 GATE_MIN_LETTER_SHARE -> refused as "not_english_text".
-#                 Checked first, so emoji, Arabic, punctuation and control
-#                 characters are reported as not English, not as too short.
+#                 Checked before word count, so emoji, Arabic and punctuation
+#                 are reported as not English, not as too short.
 #   real words    runs of A–Z letters, one internal apostrophe allowed
 #                 ("don't"). Fewer than GATE_MIN_WORDS -> "too_few_words".
 #

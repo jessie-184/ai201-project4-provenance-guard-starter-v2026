@@ -858,6 +858,10 @@ The same inputs as above, now refused (lines 645, 652 and 698):
 
 Criteria 2 and 3 have exactly the same five misses as before, which is what I expected, because none of those texts contain control characters. Criterion 5 still holds, but trial 1's slowest request was 135.8 ms (C5 means 67.0, 60.9 and 59.0 ms). That is closer to the 150 ms line than any request in the before run. Text that passes the gate takes the same path as before, so I read this as normal laptop variation, not a cost of the fix. It is the margin I'd watch.
 
+**Did it help? Yes, for the two criteria it was aimed at, and it cost nothing measurable.**
+- **How I know:** the same runner, the same committed inputs and a freshly started service, before and after, three trials each. Criteria 1 and 4 went from MISSED (0/10 and 8/10) to MET (10/10 in all three trials), and nothing that passed before failed after.
+- **What it cost:** the 36 control-character requests used to be scored by GPT-2, taking 27.2–75.7 ms each. They are now refused in 0.2–1.3 ms. Text that passes the gate takes the same path as before, and warm latency stayed inside its target, with trial means of 59–67 ms against 57–60 ms before.
+
 ## What's Still Broken
 
 **Criterion 2: Spanish, French, German, Vietnamese and Indonesian still get a label (5/10 refused).** The letter-share check tells scripts apart, not languages. I stopped here because refusing these properly needs a check on the words themselves, not the letters, and that's a new rule with its own risk to short English messages. Raising the 0.70 line wouldn't help: Spanish, French, German and Indonesian sit at 0.93–0.97, the same as English. **First thing I'd do:** add a check on the share of words that are common English function words ("the", "and", "is", "you", "I", "to" and so on). Real English uses them constantly and the other four languages almost never do. I'd test it on my 20 short texts *before* turning it on, because "Ok 👌 I will get it done" and "Hey whassup girl 👀" have very few of them.
@@ -865,6 +869,8 @@ Criteria 2 and 3 have exactly the same five misses as before, which is what I ex
 **Criterion 3: five of my own short messages are refused (5/20).** This is the miss that hurts real writers most, because a refused writer gets no `content_id` and can't appeal. I stopped because the fix changes how the letter share is counted. That check is also what refuses Arabic, Russian, Chinese, Hindi and Korean, so it needs its own before and after run, and Milestone 6 is one improvement. **First thing I'd do:** leave emoji, skin-tone modifiers and joiners out of the letter-share count, so it compares letters to punctuation only. By my arithmetic on the five refused texts, they would score 0.700–1.000 instead of 0.536–0.667. C3_09 lands exactly on 0.700 and only passes because the rule refuses anything *below* 0.70, so that alone isn't much margin. Emoji-only junk like MF06 would have no letters and no words left, so the gate would still need to refuse it (by the word count). I haven't run this; it's the next thing to test.
 
 **Still out of scope from The Shape:** short AI text like EV08, prompt injection (PI01, PI02, PI05), and the small detector model. None of them changed this unit.
+
+**The one thing I'd do first:** If I had another unit, I'd fix criterion 3 first by leaving emoji out of the letter count, because a writer who gets refused can't appeal, while a Spanish text that gets scored at least gets a content_id and a way to challenge it.
 
 ## How I Used AI (Capstone)
 

@@ -695,7 +695,7 @@ Provenance Guard, the text-provenance service I built in units 7 and 8. It is a 
 
 ## The Shape
 
-**Shape B: harden against failure.** My criteria are about the bad path: what Provenance Guard does with input it shouldn't be scoring at all. Today the route only refuses text that is missing, empty, over 10,000 characters, or too short to give GPT-2 three tokens. Everything else reaches both signals and gets a label. The gate adds one check in between: text with too few real words to score, or text that is mostly not English letters, is refused before signal one or signal two runs. Provenance Guard is built for English only: GPT-2 was trained on English text, and the style signal's word splitter only recognises the letters a–z, digits and apostrophes. So text that isn't English is refused rather than given a label the signals can't support. Text that passes the gate is scored exactly as before. The signals, weights, thresholds and label text don't change.
+**Shape B: harden against failure.** My criteria are about the bad path: what Provenance Guard does with input it shouldn't be scoring at all. Today the route only refuses text that is missing, empty, over 10,000 characters, or too short to give GPT-2 three tokens. Everything else reaches both signals and gets a label. The gate adds one check in between: text with too few real words to score, or text that is mostly not English letters, is refused before signal one or signal two runs. Provenance Guard is built for English only: GPT-2 was trained on English text, and the style signal's word splitter only recognises the letters a–z, digits and apostrophes. The letter-share check refuses text written mostly in other scripts (Arabic, Cyrillic, Chinese, Devanagari, Hangul) rather than give it a label the signals can't support. It does not catch languages written mostly in a–z, such as Spanish or French; my run log shows that (criterion 2, What's Still Broken). In Milestone 6 I added a third check, run first: text containing a control character is refused. Text that passes the gate is scored exactly as before. The signals, weights, thresholds and label text don't change.
 
 **Out of scope:**
 
@@ -753,6 +753,109 @@ How I measured it, on 2026-11-11:
 - The numbers are the `duration_ms` values from those ten records in `logs/audit.jsonl` (lines 367–376): 51.7, 42.5, 41.4, 65.6, 54.7, 55.1, 42.0, 42.9, 44.3, 41.7. Sum 481.9 ms ÷ 10 = **48.2 ms**. Median 43.6 ms, min 41.4 ms, max 65.6 ms.
 
 Two other cold starts I recorded: 5,037.7 ms (the clean-checkout test in RUNNING.md) and 5,340.2 ms (log line 344, an earlier run of the same measurement). I reran that earlier one because the server it hit had been restarted by debug mode's file watcher rather than started by me. Its warm mean was 55.1 ms (log lines 345–354). So a cold start is 4–5.5 s on this machine and a warm submission is roughly 40–85 ms.
+
+## Run Log and Verdicts
+
+Produced by `run_capstone.py::main`, run as `python run_capstone.py before` against a freshly started service. The inputs are in `capstone_inputs.py`, committed (a99e5db) after `criteria.md` (b8f8c92) and before any run. None of them were used to set the gate's numbers. The runner warms the model with one uncounted request (log line 388), then runs all five criteria three times, 65 s apart, changing nothing in between. Each trial has its own `creator_id`s so rate limits don't carry over. For every request it reads back the log lines that request added, so each count below comes from `logs/audit.jsonl`, not from what the runner expected. Full per-input tables are in [results/capstone_2026-11-11_1841_before.md](results/capstone_2026-11-11_1841_before.md), and every row is in the matching `.json` file. The three trials are log lines 389–643.
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1. Control characters refused | 10 of 10 refused (400, no `decided` line) | 0/10 | 0/10 | 0/10 | **MISSED** |
+| 2. Non-English refused | at least 9 of 10 refused (400) | 5/10 | 5/10 | 5/10 | **MISSED** |
+| 3. Short human texts not refused | 0 of 20 refused by the gate | 5/20 refused | 5/20 refused | 5/20 refused | **MISSED** |
+| 4. Bad requests logged | 10 of 10 with exactly one `rejected` line, `reason` and `duration_ms` | 8/10 | 8/10 | 8/10 | **MISSED** |
+| 5. Warm latency | at least 29 of 30 at or under 150 ms | 30/30 | 30/30 | 30/30 | **MET** |
+
+**The three trials gave the same outcome for every input.** They really were three runs: the same text (C5_01) has a different `content_id` and timestamp each time (line 444 `cb7d6fb0…` at 23:41:38, line 529 `e26429d3…` at 23:42:47, line 614 `0dceddd7…` at 23:43:56) and the same combined score, 0.6447. That's expected: GPT-2 scoring is deterministic (no sampling), the style signal is arithmetic, and the gate is fixed rules. Only `duration_ms` varies between trials.
+
+### Criterion 1: control characters (MISSED, 0/10)
+
+All ten were scored, and all ten were called human. Lines 389 (C1_01, a null byte) and 396 (C1_08, an ANSI colour code), from trial 1:
+
+```json
+{"timestamp": "2026-11-11T23:41:36+00:00", "content_id": "9fb6f3fd-5304-4bdd-8f59-1603264dd884", "creator_id": "cap_11111841_t1_C1_01", "guess": "human", "model_score": 0.2341, "style_score": 0.5, "combined_score": 0.3538, "label": "This looks like it was written by a person. Our check found the patterns we usually see in human writing.", "status": "decided", "duration_ms": 33.6, "text_chars": 157, "word_count": 31, "text_excerpt": "I finally fixed the leaking tap in the kitchen this morning,"}
+{"timestamp": "2026-11-11T23:41:37+00:00", "content_id": "bd9fb83a-22fc-463e-aabe-958bd21b95d4", "creator_id": "cap_11111841_t1_C1_08", "guess": "human", "model_score": 0.0222, "style_score": 0.5, "combined_score": 0.2372, "label": "This looks like it was written by a person. Our check found the patterns we usually see in human writing.", "status": "decided", "duration_ms": 32.6, "text_chars": 158, "word_count": 24, "text_excerpt": "The volunteers cleaned the whole riverbank in one afternoon,"}
+```
+
+**Stage:** the gate, `app.py::_gate`. **Mechanism:** the gate only measures the *share* of a–z letters, and one control character in 25–31 real words barely moves it: the ten texts scored 0.934–0.983 against a 0.70 minimum. Three of the codes (0x0B, 0x0C, 0x1F) aren't counted at all, because Python's `isspace()` treats them as whitespace. Nothing in the gate looked for control characters as such.
+
+### Criterion 2: non-English (MISSED, 5/10)
+
+The five non-Latin scripts were refused, and the five Latin-script languages were scored. Lines 399 (Arabic), 404 (Spanish) and 407 (Vietnamese):
+
+```json
+{"timestamp": "2026-11-11T23:41:37+00:00", "creator_id": "cap_11111841_t1_C2_01", "event": "rejected", "status": "rejected", "reason": "not_english_text", "duration_ms": 0.2, "text_chars": 201, "word_count": 0, "text_excerpt": "ذهبت إلى السوق صباح يوم الجمعة مع أخي الصغير لشراء الخضروات "}
+{"timestamp": "2026-11-11T23:41:37+00:00", "content_id": "e44b491f-657f-4999-9d30-491970e0e4fc", "creator_id": "cap_11111841_t1_C2_06", "guess": "unsure", "model_score": 0.2758, "style_score": 0.8167, "combined_score": 0.5192, "label": "We can't tell whether this was written by a person or with help from AI. A lot of genuine writing looks like this, so this isn't a sign that anything is wrong. If you wrote this and want a person to take a look, you can ask for a review.", "status": "decided", "duration_ms": 34.6, "text_chars": 194, "word_count": 38, "text_excerpt": "El sábado pasado fui al mercado con mi madre para comprar fr"}
+{"timestamp": "2026-11-11T23:41:37+00:00", "content_id": "d658bf46-636e-484c-ae1c-ece9954a20e5", "creator_id": "cap_11111841_t1_C2_09", "guess": "unsure", "model_score": 0.6693, "style_score": 0.3745, "combined_score": 0.5366, "label": "We can't tell whether this was written by a person or with help from AI. A lot of genuine writing looks like this, so this isn't a sign that anything is wrong. If you wrote this and want a person to take a look, you can ask for a review.", "status": "decided", "duration_ms": 52.1, "text_chars": 149, "word_count": 53, "text_excerpt": "Hôm qua tôi đi học về muộn vì trời mưa rất to. Mẹ tôi đã nấu"}
+```
+
+**Stage:** the gate's letter-share check. **Mechanism:** it measures *script*, not *language*. Arabic, Russian, Chinese, Hindi and Korean have no a–z letters (share 0.000). Spanish (0.957), French (0.928), German (0.960) and Indonesian (0.966) are written almost entirely in a–z and look like English to it. Vietnamese passed by 0.002 (0.702), because its accented letters count against it but not quite enough. Indonesian was labelled human, and the other four unsure.
+
+### Criterion 3: short human texts (MISSED, 5 of 20 refused)
+
+Fifteen of my texts were scored. Five were refused as `not_english_text`: C3_04, C3_09, C3_11, C3_19 and C3_20. Lines 409 (passed) and 428 (refused):
+
+```json
+{"timestamp": "2026-11-11T23:41:37+00:00", "content_id": "bde5836a-06b6-4228-995c-27524a94c69c", "creator_id": "cap_11111841_t1_C3_01", "guess": "human", "model_score": 0.007, "style_score": 0.5, "combined_score": 0.2288, "label": "This looks like it was written by a person. Our check found the patterns we usually see in human writing.", "status": "decided", "duration_ms": 15.8, "text_chars": 18, "word_count": 3, "text_excerpt": "Hey whassup girl 👀"}
+{"timestamp": "2026-11-11T23:41:38+00:00", "creator_id": "cap_11111841_t1_C3_20", "event": "rejected", "status": "rejected", "reason": "not_english_text", "duration_ms": 0.2, "text_chars": 33, "word_count": 5, "text_excerpt": "Nah 🙅‍♀️🙅‍♀️🙅‍♀️ I don't think so"}
+```
+
+**Stage:** the gate's letter-share check. **Mechanism:** in a short message, a few emoji and a "!!!" outweigh the letters, and the gate counts emoji by Unicode code point, not as one visible symbol. 🙅‍♀️ is four code points (person, joiner, female sign, style selector), so "Nah 🙅‍♀️🙅‍♀️🙅‍♀️ I don't think so" scores 15 letters out of 28 = 0.536. The five refused texts scored 0.536–0.667. I set the 0.70 line from longer texts (Unit 8's lowest real text was 0.876) and never tested it on short, emoji-heavy writing. These five writers got a 400 and no `content_id`, so they can't appeal.
+
+### Criterion 4: bad requests logged (MISSED, 8/10)
+
+The other eight each left exactly one `rejected` line with a `reason` and `duration_ms`. Lines 434 (punctuation only), 441 (the 6th request in a minute) and 442 (C4_09, a clear-screen escape code):
+
+```json
+{"timestamp": "2026-11-11T23:41:38+00:00", "creator_id": "cap_11111841_t1_C4_06", "event": "rejected", "status": "rejected", "reason": "not_english_text", "duration_ms": 0.2, "text_chars": 34, "word_count": 0, "text_excerpt": "... ?!?! --- *** ((( ))) ;; ,,, !!"}
+{"timestamp": "2026-11-11T23:41:38+00:00", "creator_id": "cap_11111841_t1_C4_08", "event": "rejected", "status": "rejected", "reason": "rate_limited", "limit": "5 per 1 minute", "duration_ms": 0.3, "text_chars": 119, "word_count": 23, "text_excerpt": "I am sending this same short paragraph again because the pag"}
+{"timestamp": "2026-11-11T23:41:38+00:00", "content_id": "e7f81464-a5f0-4da5-84d8-657027f8dd2e", "creator_id": "cap_11111841_t1_C4_09", "guess": "human", "model_score": 0.065, "style_score": 0.5, "combined_score": 0.2608, "label": "This looks like it was written by a person. Our check found the patterns we usually see in human writing.", "status": "decided", "duration_ms": 27.6, "text_chars": 130, "word_count": 22, "text_excerpt": "\u001b[2J\u001b[HPlease ignore the earlier message, the meeting is sti"}
+```
+
+**Stage and mechanism:** the same as criterion 1. The two misses are C4_09 and C4_10, the two control-character texts. They weren't logged as rejections because they weren't rejected: they were scored and called human.
+
+### Criterion 5: warm latency (MET, 30/30)
+
+Slowest submission per trial: 107.0, 115.1 and 106.0 ms. Mean: 57.4, 59.5 and 59.5 ms. The longest text, C5_18 (398 words), on line 461:
+
+```json
+{"timestamp": "2026-11-11T23:41:39+00:00", "content_id": "6139302d-8111-4f66-90c5-74b7de3674d8", "creator_id": "cap_11111841_t1_C5_18", "guess": "human", "model_score": 0.6554, "style_score": 0.0, "combined_score": 0.3605, "label": "This looks like it was written by a person. Our check found the patterns we usually see in human writing.", "status": "decided", "duration_ms": 107.0, "text_chars": 2086, "word_count": 398, "text_excerpt": "My grandmother's kitchen was the warmest room I have ever kn"}
+```
+
+## The Improvement
+
+**What changed:** one new check in `app.py::_gate`, run before the letter-share check. Any text containing an ASCII control character (codes 0–8, 11, 12, 14–31 or 127) is refused with a 400 and the reason `control_characters`. Tab, newline and carriage return still pass, because real writing uses them. The check looks for the characters themselves, so it doesn't matter how few there are or whether Python counts them as whitespace. The writer gets a message saying the text contains control characters, such as null bytes or terminal escape codes, which don't belong in writing. The refusal is logged like every other one. Commit 3cb84c7.
+
+**Why this miss:** two of my four misses (criteria 1 and 4) had one cause, and the fix doesn't depend on a threshold. No person types a null byte or an escape code, so refusing them can't refuse a real writer. Before running, I checked which existing texts the rule would catch: none of the 23 Unit 8 scenario texts, none of my criterion 2, 3 or 5 inputs, and only MF03 in the attack set, which was already refused as junk. I didn't pick criterion 3's fix, because it changes how the letter share is counted, the same check criterion 2 depends on.
+
+**After run:** `python run_capstone.py after`, the same runner and inputs, on a freshly started service. The warm-up is log line 644, and the trials are lines 645–899. Full tables are in [results/capstone_2026-11-11_1849_after.md](results/capstone_2026-11-11_1849_after.md).
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1. Control characters refused | 10 of 10 refused (400, no `decided` line) | 10/10 | 10/10 | 10/10 | **MET** (was MISSED, 0/10) |
+| 2. Non-English refused | at least 9 of 10 refused (400) | 5/10 | 5/10 | 5/10 | **MISSED** (unchanged) |
+| 3. Short human texts not refused | 0 of 20 refused by the gate | 5/20 refused | 5/20 refused | 5/20 refused | **MISSED** (unchanged) |
+| 4. Bad requests logged | 10 of 10 with exactly one `rejected` line, `reason` and `duration_ms` | 10/10 | 10/10 | 10/10 | **MET** (was MISSED, 8/10) |
+| 5. Warm latency | at least 29 of 30 at or under 150 ms | 30/30 | 30/30 | 30/30 | **MET** |
+
+The same inputs as above, now refused (lines 645, 652 and 698):
+
+```json
+{"timestamp": "2026-11-11T23:49:08+00:00", "creator_id": "cap_11111849_t1_C1_01", "event": "rejected", "status": "rejected", "reason": "control_characters", "duration_ms": 0.4, "text_chars": 157, "word_count": 31, "text_excerpt": "I finally fixed the leaking tap in the kitchen this morning,"}
+{"timestamp": "2026-11-11T23:49:08+00:00", "creator_id": "cap_11111849_t1_C1_08", "event": "rejected", "status": "rejected", "reason": "control_characters", "duration_ms": 0.2, "text_chars": 158, "word_count": 24, "text_excerpt": "The volunteers cleaned the whole riverbank in one afternoon,"}
+{"timestamp": "2026-11-11T23:49:09+00:00", "creator_id": "cap_11111849_t1_C4_09", "event": "rejected", "status": "rejected", "reason": "control_characters", "duration_ms": 0.2, "text_chars": 130, "word_count": 22, "text_excerpt": "\u001b[2J\u001b[HPlease ignore the earlier message, the meeting is sti"}
+```
+
+Criteria 2 and 3 have exactly the same five misses as before, which is what I expected, because none of those texts contain control characters. Criterion 5 still holds, but trial 1's slowest request was 135.8 ms (C5 means 67.0, 60.9 and 59.0 ms). That is closer to the 150 ms line than any request in the before run. Text that passes the gate takes the same path as before, so I read this as normal laptop variation, not a cost of the fix. It is the margin I'd watch.
+
+## What's Still Broken
+
+**Criterion 2: Spanish, French, German, Vietnamese and Indonesian still get a label (5/10 refused).** The letter-share check tells scripts apart, not languages. I stopped here because refusing these properly needs a check on the words themselves, not the letters, and that's a new rule with its own risk to short English messages. Raising the 0.70 line wouldn't help: Spanish, French, German and Indonesian sit at 0.93–0.97, the same as English. **First thing I'd do:** add a check on the share of words that are common English function words ("the", "and", "is", "you", "I", "to" and so on). Real English uses them constantly and the other four languages almost never do. I'd test it on my 20 short texts *before* turning it on, because "Ok 👌 I will get it done" and "Hey whassup girl 👀" have very few of them.
+
+**Criterion 3: five of my own short messages are refused (5/20).** This is the miss that hurts real writers most, because a refused writer gets no `content_id` and can't appeal. I stopped because the fix changes how the letter share is counted. That check is also what refuses Arabic, Russian, Chinese, Hindi and Korean, so it needs its own before and after run, and Milestone 6 is one improvement. **First thing I'd do:** leave emoji, skin-tone modifiers and joiners out of the letter-share count, so it compares letters to punctuation only. By my arithmetic on the five refused texts, they would score 0.700–1.000 instead of 0.536–0.667. C3_09 lands exactly on 0.700 and only passes because the rule refuses anything *below* 0.70, so that alone isn't much margin. Emoji-only junk like MF06 would have no letters and no words left, so the gate would still need to refuse it (by the word count). I haven't run this; it's the next thing to test.
+
+**Still out of scope from The Shape:** short AI text like EV08, prompt injection (PI01, PI02, PI05), and the small detector model. None of them changed this unit.
+
 
 
 <!-- ═════════════════════════════════════════════════════════════════════

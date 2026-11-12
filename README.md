@@ -754,6 +754,16 @@ How I measured it, on 2026-11-11:
 
 Two other cold starts I recorded: 5,037.7 ms (the clean-checkout test in RUNNING.md) and 5,340.2 ms (log line 344, an earlier run of the same measurement). I reran that earlier one because the server it hit had been restarted by debug mode's file watcher rather than started by me. Its warm mean was 55.1 ms (log lines 345–354). So a cold start is 4–5.5 s on this machine and a warm submission is roughly 40–85 ms.
 
+**A hundred a day:**
+
+- 100 warm submissions × 48.2 ms = 4,820 ms, about **4.8 s of compute a day**.
+- With longer texts it's a little more. In my capstone runs (30 texts of 100–398 words, six trials in all), the mean per trial was 57.4–67.0 ms, so 100 × 67.0 ms = **6.7 s a day** at the high end.
+- Add one cold start each time the service starts: **4.2–5.3 s** (my three measured cold starts were 4,248.9, 5,037.7 and 5,340.2 ms).
+- So a hundred submissions a day costs about **9–12 s of laptop CPU time and no money**.
+- Requests the gate refuses barely count. The 108 gate refusals in my capstone runs (log lines 389–899) took 0.1–1.3 ms each, so even 100 junk submissions add under 0.2 s.
+
+At this scale, compute isn't the real cost of running Provenance Guard. The real cost is a wrong label, or a real writer refused with no way to appeal.
+
 ## Run Log and Verdicts
 
 Produced by `run_capstone.py::main`, run as `python run_capstone.py before` against a freshly started service. The inputs are in `capstone_inputs.py`, committed (a99e5db) after `criteria.md` (b8f8c92) and before any run. None of them were used to set the gate's numbers. The runner warms the model with one uncounted request (log line 388), then runs all five criteria three times, 65 s apart, changing nothing in between. Each trial has its own `creator_id`s so rate limits don't carry over. For every request it reads back the log lines that request added, so each count below comes from `logs/audit.jsonl`, not from what the runner expected. Full per-input tables are in [results/capstone_2026-11-11_1841_before.md](results/capstone_2026-11-11_1841_before.md), and every row is in the matching `.json` file. The three trials are log lines 389–643.
@@ -856,7 +866,26 @@ Criteria 2 and 3 have exactly the same five misses as before, which is what I ex
 
 **Still out of scope from The Shape:** short AI text like EV08, prompt injection (PI01, PI02, PI05), and the small detector model. None of them changed this unit.
 
+## How I Used AI (Capstone)
 
+**Moment 1: checking the gate's numbers before picking them**
+
+- *What I asked for:* I asked Claude to run checks on my existing texts to find good values for the gate's settings. The settings were the minimum number of words, the minimum letter share, and how much of each text to keep in the log. I wanted some evidence behind the numbers instead of guessing.
+- *What came back:* measurements over my Unit 8 attack set and `scenarios.py`.
+  - Every real text, human or AI, had at least 8 words and a letter share of at least 0.876. The lowest were PI05 at 0.876 and FP08 at 0.897.
+  - The junk was far below that. MF03 scored 0.474, MF01, MF04, MF06 and MF07 scored 0.000, and MF02 and MF05 were one word each.
+- *What I decided:*
+  - **0.70:** it sits in the gap between the junk and the real texts.
+  - **3 words:** that leaves room for very short real writing under FP08's 8 words.
+  - **60 characters:** enough of the excerpt to recognise a submission in the log without putting whole texts in a public repo.
+
+  The run log later showed the limit of that evidence. Every text I measured was long, and 0.70 refuses short, emoji-heavy messages like five of my own (criterion 3). Checking a number on one kind of text doesn't show it works on another.
+
+**Moment 2: working out what my criteria had to cover**
+
+- *What I asked for:* before writing my criteria, I asked Claude what they should consider.
+- *What came back:* three areas. At least one criterion about the gate, one about the log, and one about the bad path.
+- *What I did with it:* That gave me the scope my five criteria needed to cover and kept me from writing criteria about parts that already worked in Unit 8.
 
 <!-- ═════════════════════════════════════════════════════════════════════
 
